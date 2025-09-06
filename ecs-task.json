@@ -4,6 +4,7 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
+  "executionRoleArn": "arn:aws:iam::939111385695:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
       "name": "portfolio-backend-container",
@@ -11,6 +12,17 @@
       "essential": true,
       "portMappings": [
         { "containerPort": 80, "protocol": "tcp" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/portfolio-backend",
+          "awslogs-region": "sa-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "environment": [
+        { "name": "ENV", "value": "production" }
       ]
     }
   ]
