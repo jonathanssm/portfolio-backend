@@ -2,13 +2,13 @@
   "family": "portfolio-backend-task",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
-  "cpu": "256",
-  "memory": "512",
-  "executionRoleArn": "arn:aws:iam::939111385695:role/ecsTaskExecutionRole",
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "PLACEHOLDER_EXEC_ROLE",
   "containerDefinitions": [
     {
       "name": "portfolio-backend-container",
-      "image": "939111385695.dkr.ecr.sa-east-1.amazonaws.com/portfolio-backend-repo",
+      "image": "PLACEHOLDER_IMAGE",
       "essential": true,
       "portMappings": [
         { "containerPort": 80, "protocol": "tcp" }
@@ -22,8 +22,51 @@
         }
       },
       "environment": [
-        { "name": "ENV", "value": "production" }
+        { "name": "ENV", "value": "production" },
+        { "name": "SPRING_DATASOURCE_URL", "value": "PLACEHOLDER_DB_URL" },
+        { "name": "SPRING_DATASOURCE_USERNAME", "value": "PLACEHOLDER_DB_USER" },
+        { "name": "SPRING_DATASOURCE_PASSWORD", "value": "PLACEHOLDER_DB_PASSWORD" },
+        { "name": "KAFKA_BOOTSTRAP_SERVERS", "value": "PLACEHOLDER_KAFKA_BROKER" }
       ]
+    },
+    {
+      "name": "kafka",
+      "image": "confluentinc/cp-kafka:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 9092, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "KAFKA_BROKER_ID", "value": "1" },
+        { "name": "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR", "value": "1" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/kafka",
+          "awslogs-region": "sa-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    },
+    {
+      "name": "kafdrop",
+      "image": "obsidiandynamics/kafdrop:latest",
+      "essential": false,
+      "portMappings": [
+        { "containerPort": 9000, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "KAFKA_BROKERCONNECT", "value": "PLACEHOLDER_KAFKA_BROKER" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/kafdrop",
+          "awslogs-region": "sa-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
     }
   ]
 }

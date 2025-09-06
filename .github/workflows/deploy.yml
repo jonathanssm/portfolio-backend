@@ -8,51 +8,73 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      ECR_REPO: ${{ secrets.ECR_REPO }}
+      ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+      RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
+      RDS_DB: ${{ secrets.RDS_DB }}
+      RDS_USER: ${{ secrets.RDS_USER }}
+      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+      KAFKA_BROKER: ${{ secrets.KAFKA_BROKER }}
 
     steps:
-      # 1. Checkout do código
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Configura JDK 21
       - name: Set up JDK 21
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      # 3. Build Maven
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      # 4. Login no Amazon ECR
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
 
-      # 5. Build, tag e push da imagem Docker
       - name: Build, tag, and push Docker image
         run: |
           IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPO }}:latest
           docker build -t $IMAGE_URI .
           docker push $IMAGE_URI
 
-      # 6. Atualiza o arquivo JSON da Task Definition com a imagem correta
-      - name: Update ECS task definition with image
+      - name: Ensure CloudWatch log groups exist
+        run: |
+          aws logs create-log-group --log-group-name /ecs/portfolio-backend-task || true
+          aws logs create-log-group --log-group-name /ecs/kafka || true
+          aws logs create-log-group --log-group-name /ecs/kafdrop || true
+
+      - name: Update ECS task definition with image and secrets
         run: |
           IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPO }}:latest
-          jq --arg IMAGE "$IMAGE_URI" '.containerDefinitions[0].image=$IMAGE' ecs-task.json > ecs-task-updated.json
+          EXEC_ROLE="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecsTaskExecutionRole"
 
-      # 7. Deploy no ECS
+          jq --arg IMAGE "$IMAGE_URI" \
+             --arg EXEC_ROLE "$EXEC_ROLE" \
+             --arg RDS_ENDPOINT "$RDS_ENDPOINT" \
+             --arg RDS_DB "$RDS_DB" \
+             --arg RDS_USER "$RDS_USER" \
+             --arg RDS_PASSWORD "$RDS_PASSWORD" \
+             --arg KAFKA_BROKER "$KAFKA_BROKER" \
+             '.executionRoleArn=$EXEC_ROLE |
+              .containerDefinitions[0].image=$IMAGE |
+              .containerDefinitions[0].environment[] |=
+                if .name=="SPRING_DATASOURCE_URL" then .value="jdbc:postgresql://"+$RDS_ENDPOINT+":5432/"+$RDS_DB
+                elif .name=="SPRING_DATASOURCE_USERNAME" then .value=$RDS_USER
+                elif .name=="SPRING_DATASOURCE_PASSWORD" then .value=$RDS_PASSWORD
+                elif .name=="KAFKA_BOOTSTRAP_SERVERS" then .value=$KAFKA_BROKER
+                else . end |
+              .containerDefinitions[2].environment[] |=
+                if .name=="KAFKA_BROKERCONNECT" then .value=$KAFKA_BROKER else . end' ecs-task.json > ecs-task-updated.json
+
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
         with:
           task-definition: ecs-task-updated.json
           service: ${{ secrets.ECS_SERVICE }}
