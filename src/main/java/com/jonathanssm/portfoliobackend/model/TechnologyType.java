@@ -13,7 +13,6 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Audited
 @Entity
 @Table(name = "technology_types", schema = "portfolio")
-@AuditTable(value = "technology_types_aud", schema = "portfolio_aud")
 @EntityListeners(AuditingEntityListener.class)
 public class TechnologyType {
 

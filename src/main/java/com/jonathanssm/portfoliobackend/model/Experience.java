@@ -17,13 +17,11 @@ import java.util.Set;
 
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Audited
 @Entity
 @Table(name = "experiences", schema = "portfolio")
-@AuditTable(value = "experiences_aud", schema = "portfolio_aud")
 @EntityListeners(AuditingEntityListener.class)
 public class Experience {
 
@@ -58,13 +56,10 @@ public class Experience {
             joinColumns = @JoinColumn(name = "experience_id"),
             inverseJoinColumns = @JoinColumn(name = "technology_id")
     )
-    @AuditJoinTable(schema = "portfolio_aud")
-    @Builder.Default
     private Set<Technology> technologies = new HashSet<>();
 
     @Column(name = "responsibilities", columnDefinition = "TEXT")
     @Convert(converter = StringSetJsonConverter.class)
-    @Builder.Default
     private Set<String> responsibilities = new HashSet<>();
 
     @CreatedDate

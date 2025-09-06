@@ -13,6 +13,7 @@ spring:
       ddl-auto: update
     show-sql: false
     properties:
+      org.hibernate.envers.default_schema: portfolio_aud
       hibernate:
         format_sql: true
         jdbc.batch_size: 20                     # Melhora performance em inserts em lote
