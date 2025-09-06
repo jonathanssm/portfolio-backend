@@ -81,12 +81,4 @@ public class Experience {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
-
-    public void addTechnology(Technology technology) {
-        technologies.add(technology);
-    }
-
-    public void removeTechnology(Technology technology) {
-        technologies.remove(technology);
-    }
 }
