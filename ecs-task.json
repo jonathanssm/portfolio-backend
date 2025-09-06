@@ -16,7 +16,7 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/portfolio-backend",
+          "awslogs-group": "/ecs/portfolio-backend-task",
           "awslogs-region": "sa-east-1",
           "awslogs-stream-prefix": "ecs"
         }
