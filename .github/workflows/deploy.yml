@@ -1,4 +1,4 @@
-name: Deploy to AWS ECS
+name: Deploy to AWS ECS (prod)
 
 on:
   push:
@@ -16,11 +16,10 @@ jobs:
       ECR_REPO: ${{ secrets.ECR_REPO }}
       ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
       ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
-      RDS_ENDPOINT: ${{ secrets.RDS_ENDPOINT }}
-      RDS_DB: ${{ secrets.RDS_DB }}
-      RDS_USER: ${{ secrets.RDS_USER }}
-      RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-      KAFKA_BROKER: ${{ secrets.KAFKA_BROKER }}
+      SPRING_DATASOURCE_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
+      SPRING_DATASOURCE_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
+      SPRING_DATASOURCE_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+      KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
 
     steps:
       - name: Checkout code
@@ -40,43 +39,44 @@ jobs:
 
       - name: Build, tag, and push Docker image
         run: |
-          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPO }}:latest
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest
           docker build -t $IMAGE_URI .
           docker push $IMAGE_URI
 
       - name: Ensure CloudWatch log groups exist
         run: |
           aws logs create-log-group --log-group-name /ecs/portfolio-backend-task || true
-          aws logs create-log-group --log-group-name /ecs/kafka || true
-          aws logs create-log-group --log-group-name /ecs/kafdrop || true
 
-      - name: Update ECS task definition with image and secrets
+      - name: Render ECS task definition
         run: |
-          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPO }}:latest
-          EXEC_ROLE="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/ecsTaskExecutionRole"
+          IMAGE_URI=${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:latest
+          EXEC_ROLE="arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/ecsTaskExecutionRole"
+          TASK_ROLE="arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/ecsTaskRole" # ajuste se precisar
 
           jq --arg IMAGE "$IMAGE_URI" \
              --arg EXEC_ROLE "$EXEC_ROLE" \
-             --arg RDS_ENDPOINT "$RDS_ENDPOINT" \
-             --arg RDS_DB "$RDS_DB" \
-             --arg RDS_USER "$RDS_USER" \
-             --arg RDS_PASSWORD "$RDS_PASSWORD" \
-             --arg KAFKA_BROKER "$KAFKA_BROKER" \
+             --arg TASK_ROLE "$TASK_ROLE" \
+             --arg DB_URL "${{ env.SPRING_DATASOURCE_URL }}" \
+             --arg DB_USER "${{ env.SPRING_DATASOURCE_USERNAME }}" \
+             --arg DB_PASSWORD "${{ env.SPRING_DATASOURCE_PASSWORD }}" \
+             --arg KAFKA_BROKER "${{ env.KAFKA_BOOTSTRAP_SERVERS }}" \
              '.executionRoleArn=$EXEC_ROLE |
+              .taskRoleArn=$TASK_ROLE |
               .containerDefinitions[0].image=$IMAGE |
               .containerDefinitions[0].environment[] |=
-                if .name=="SPRING_DATASOURCE_URL" then .value="jdbc:postgresql://"+$RDS_ENDPOINT+":5432/"+$RDS_DB
-                elif .name=="SPRING_DATASOURCE_USERNAME" then .value=$RDS_USER
-                elif .name=="SPRING_DATASOURCE_PASSWORD" then .value=$RDS_PASSWORD
+                if .name=="SPRING_DATASOURCE_URL" then .value=$DB_URL
+                elif .name=="SPRING_DATASOURCE_USERNAME" then .value=$DB_USER
+                elif .name=="SPRING_DATASOURCE_PASSWORD" then .value=$DB_PASSWORD
                 elif .name=="KAFKA_BOOTSTRAP_SERVERS" then .value=$KAFKA_BROKER
-                else . end |
-              .containerDefinitions[2].environment[] |=
-                if .name=="KAFKA_BROKERCONNECT" then .value=$KAFKA_BROKER else . end' ecs-task.json > ecs-task-updated.json
+                else . end' ecs-task.json > ecs-task-updated.json
 
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ecs-task-updated.json
-          service: ${{ secrets.ECS_SERVICE }}
-          cluster: ${{ secrets.ECS_CLUSTER }}
-          wait-for-service-stability: true
+      - name: Register Task Definition
+        run: |
+          TASK_DEF_JSON=$(cat ecs-task-updated.json)
+          AWS_OUTPUT=$(aws ecs register-task-definition --cli-input-json "$(cat ecs-task-updated.json)")
+          echo "$AWS_OUTPUT" > register-output.json
+          echo "Registered task definition."
+
+      - name: Deploy to ECS (update service)
+        run: |
+          aws ecs update-service --cluster "${{ env.ECS_CLUSTER }}" --service "${{ env.ECS_SERVICE }}" --force-new-deployment
