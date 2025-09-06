@@ -1,9 +1,10 @@
 package com.jonathanssm.portfoliobackend.model;
 
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.envers.AuditJoinTable;
-import org.hibernate.envers.AuditTable;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.envers.Audited;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 

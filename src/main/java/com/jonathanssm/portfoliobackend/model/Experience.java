@@ -2,9 +2,10 @@ package com.jonathanssm.portfoliobackend.model;
 
 import com.jonathanssm.portfoliobackend.util.StringSetJsonConverter;
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.envers.AuditJoinTable;
-import org.hibernate.envers.AuditTable;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.envers.Audited;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -79,13 +80,5 @@ public class Experience {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-
-    public void addTechnology(Technology technology) {
-        technologies.add(technology);
-    }
-
-    public void removeTechnology(Technology technology) {
-        technologies.remove(technology);
     }
 }
