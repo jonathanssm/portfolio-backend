@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="1" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="technology_types" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="technology_types" schemaName="portfolio">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="description" type="TEXT"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="technologies" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="technologies" schemaName="portfolio">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="type_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_technology_type"
+                             references="portfolio.technology_types(id)"/>
+            </column>
+            <column name="icon_url" type="VARCHAR(500)"/>
+            <column name="version" type="SMALLINT"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="3" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="experiences" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="experiences" schemaName="portfolio">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="title" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="company_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="project_name" type="VARCHAR(255)"/>
+            <column name="description" type="TEXT"/>
+            <column name="start_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_date" type="DATE"/>
+            <column name="current" type="BOOLEAN" defaultValueBoolean="false"/>
+            <column name="responsibilities" type="TEXT"/> <!-- Armazenará JSON de Set<String> -->
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="4" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="experience_technologies" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_experience_technologies_experience" references="portfolio.experiences(id)"/>
+            </column>
+            <column name="technology_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_experience_technologies_technology" references="portfolio.technologies(id)"/>
+            </column>
+        </createTable>
+        <addPrimaryKey columnNames="experience_id, technology_id" tableName="experience_technologies" schemaName="portfolio"/>
+    </changeSet>
+</databaseChangeLog>

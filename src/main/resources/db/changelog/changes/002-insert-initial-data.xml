@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="1" author="jonathanssm">
+        <insert tableName="technology_types" schemaName="portfolio">
+            <column name="name" value="Backend"/>
+        </insert>
+        <insert tableName="technology_types" schemaName="portfolio">
+            <column name="name" value="Frontend"/>
+        </insert>
+        <insert tableName="technology_types" schemaName="portfolio">
+            <column name="name" value="Database"/>
+        </insert>
+        <insert tableName="technology_types" schemaName="portfolio">
+            <column name="name" value="DevOps"/>
+        </insert>
+        <insert tableName="technology_types" schemaName="portfolio">
+            <column name="name" value="Cloud"/>
+        </insert>
+        <insert tableName="technology_types" schemaName="portfolio">
+            <column name="name" value="Testing"/>
+        </insert>
+        <insert tableName="technology_types" schemaName="portfolio">
+            <column name="name" value="Other"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="2" author="jonathanssm">
+        <!-- Backend -->
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Java"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Backend')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Spring"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Backend')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Spring Boot"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Backend')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="C#"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Backend')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Hibernate"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Backend')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="REST"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Backend')"/>
+        </insert>
+
+        <!-- Frontend -->
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="AngularJS"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Frontend')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="HTML5"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Frontend')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Angular"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Frontend')"/>
+        </insert>
+
+        <!-- Database -->
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="PostgresSQL"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Database')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="SQL Server"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Database')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="OracleDB"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Database')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Oracle/MySQL"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Database')"/>
+        </insert>
+
+        <!-- DevOps -->
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Docker"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'DevOps')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="GitLab"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'DevOps')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Azure"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Cloud')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Kafka"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'DevOps')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="Jenkins"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'DevOps')"/>
+        </insert>
+
+        <!-- Testing -->
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="JUnit"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Testing')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="SonarQube"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Testing')"/>
+        </insert>
+        <insert tableName="technologies" schemaName="portfolio">
+            <column name="name" value="TestNG"/>
+            <column name="type_id" valueComputed="(SELECT id FROM portfolio.technology_types WHERE name = 'Testing')"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="3" author="jonathanssm">
+        <insert tableName="experiences" schemaName="portfolio">
+            <column name="title" value="Desenvolvedor Pleno"/>
+            <column name="company_name" value="First Decision"/>
+            <column name="project_name" value="Ministério da Gestão e Inovação (MGI)"/>
+            <column name="description" value="Desenvolvimento e manutenção de aplicações web; Otimizações de bancos de dados e desempenho de sistemas"/>
+            <column name="start_date" value="2023-01-01"/>
+            <column name="current" valueBoolean="true"/>
+            <column name="responsibilities" value="[&quot;Desenvolvimento e manutenção de aplicações web&quot;, &quot;Otimizações de bancos de dados e desempenho de sistemas&quot;]"/>
+        </insert>
+
+        <insert tableName="experiences" schemaName="portfolio">
+            <column name="title" value="Desenvolvedor Pleno"/>
+            <column name="company_name" value="Meta"/>
+            <column name="project_name" value="Sistema de gestão criminalística"/>
+            <column name="description" value="Desenvolvimento full-stack (RESTful APIs e UI Angular); Refinamento de histórias de usuários e code reviews; Implantação e suporte técnico à equipe"/>
+            <column name="start_date" value="2022-01-01"/>
+            <column name="end_date" value="2022-12-31"/>
+            <column name="current" valueBoolean="false"/>
+            <column name="responsibilities" value="[&quot;Desenvolvimento full-stack (RESTful APIs e UI Angular)&quot;, &quot;Refinamento de histórias de usuários e code reviews&quot;, &quot;Implantação e suporte técnico à equipe&quot;]"/>
+        </insert>
+
+        <insert tableName="experiences" schemaName="portfolio">
+            <column name="title" value="Desenvolvedor Full-Stack"/>
+            <column name="company_name" value="Monitora Soluções Tecnológicas"/>
+            <column name="project_name" value="Plataforma de reservas de viagens"/>
+            <column name="description" value="Desenvolvimento de microserviços e integrações com APIs de terceiros, como Azul, LATAM, GOL, Localiza, Movida, etc; Revisão e implantação de código, suporte à equipe"/>
+            <column name="start_date" value="2021-01-01"/>
+            <column name="end_date" value="2021-12-31"/>
+            <column name="current" valueBoolean="false"/>
+            <column name="responsibilities" value="[&quot;Desenvolvimento de microserviços e integrações com APIs de terceiros, como Azul, LATAM, GOL, Localiza, Movida, etc&quot;, &quot;Revisão e implantação de código, suporte à equipe&quot;]"/>
+        </insert>
+
+        <insert tableName="experiences" schemaName="portfolio">
+            <column name="title" value="Desenvolvedor Full-Stack"/>
+            <column name="company_name" value="AMcom"/>
+            <column name="project_name" value="Sistema de gestão hospitalar (Tasy)"/>
+            <column name="description" value="Desenvolvimento e manutenção de sistemas e banco de dados; Suporte técnico interno e otimizações de performance"/>
+            <column name="start_date" value="2020-01-01"/>
+            <column name="end_date" value="2020-12-31"/>
+            <column name="current" valueBoolean="false"/>
+            <column name="responsibilities" value="[&quot;Desenvolvimento e manutenção de sistemas e banco de dados&quot;, &quot;Suporte técnico interno e otimizações de performance&quot;]"/>
+        </insert>
+
+        <insert tableName="experiences" schemaName="portfolio">
+            <column name="title" value="Desenvolvedor Full-Stack"/>
+            <column name="company_name" value="Secretaria Municipal da Fazenda"/>
+            <column name="project_name" value="Digitalização de serviços públicos"/>
+            <column name="description" value="Desenvolvimento e manutenção de aplicações críticas; Responsável técnico em ausência do arquiteto principal; Implementação de testes automatizados"/>
+            <column name="start_date" value="2019-01-01"/>
+            <column name="end_date" value="2019-12-31"/>
+            <column name="current" valueBoolean="false"/>
+            <column name="responsibilities" value="[&quot;Desenvolvimento e manutenção de aplicações críticas&quot;, &quot;Responsável técnico em ausência do arquiteto principal&quot;, &quot;Implementação de testes automatizados&quot;]"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="4" author="jonathanssm">
+        <!-- First Decision -->
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'First Decision' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Java')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'First Decision' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Spring')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'First Decision' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'AngularJS')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'First Decision' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'HTML5')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'First Decision' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Docker')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'First Decision' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'PostgresSQL')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'First Decision' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'GitLab')"/>
+        </insert>
+
+        <!-- Meta -->
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Meta' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Java')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Meta' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Spring Boot')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Meta' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Angular')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Meta' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Azure')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Meta' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'SQL Server')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Meta' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'JUnit')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Meta' AND title = 'Desenvolvedor Pleno')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'SonarQube')"/>
+        </insert>
+
+        <!-- Monitora Soluções Tecnológicas -->
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Monitora Soluções Tecnológicas' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Java')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Monitora Soluções Tecnológicas' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'C#')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Monitora Soluções Tecnológicas' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Spring Boot')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Monitora Soluções Tecnológicas' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'SQL Server')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Monitora Soluções Tecnológicas' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Kafka')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Monitora Soluções Tecnológicas' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Jenkins')"/>
+        </insert>
+
+        <!-- AMcom -->
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'AMcom' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Java')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'AMcom' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'AngularJS')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'AMcom' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'OracleDB')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'AMcom' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Hibernate')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'AMcom' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'REST')"/>
+        </insert>
+
+        <!-- Secretaria Municipal da Fazenda -->
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Secretaria Municipal da Fazenda' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Java')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Secretaria Municipal da Fazenda' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Angular')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Secretaria Municipal da Fazenda' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Spring Boot')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Secretaria Municipal da Fazenda' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Oracle/MySQL')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Secretaria Municipal da Fazenda' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'Docker')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Secretaria Municipal da Fazenda' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'JUnit')"/>
+        </insert>
+        <insert tableName="experience_technologies" schemaName="portfolio">
+            <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'Secretaria Municipal da Fazenda' AND title = 'Desenvolvedor Full-Stack')"/>
+            <column name="technology_id" valueComputed="(SELECT id FROM portfolio.technologies WHERE name = 'TestNG')"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

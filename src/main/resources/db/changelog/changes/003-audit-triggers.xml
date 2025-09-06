@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <changeSet id="1" author="jonathanssm" runOnChange="true">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="revinfo" schemaName="portfolio_aud"/>
+            </not>
+        </preConditions>
+        <createTable tableName="revinfo" schemaName="portfolio_aud">
+            <column name="rev" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="revtstmp" type="BIGINT"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="2" author="jonathanssm" runOnChange="true">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="experiences_aud" schemaName="portfolio_aud"/>
+            </not>
+        </preConditions>
+        <createTable tableName="experiences_aud" schemaName="portfolio_aud">
+            <column name="id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="rev" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="revtype" type="SMALLINT"/>
+            <column name="title" type="VARCHAR(255)"/>
+            <column name="company_name" type="VARCHAR(255)"/>
+            <column name="project_name" type="VARCHAR(255)"/>
+            <column name="description" type="TEXT"/>
+            <column name="start_date" type="DATE"/>
+            <column name="end_date" type="DATE"/>
+            <column name="current" type="BOOLEAN"/>
+            <column name="responsibilities" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+        <addPrimaryKey tableName="experiences_aud" schemaName="portfolio_aud" columnNames="id, rev"/>
+        <addForeignKeyConstraint baseTableName="experiences_aud" baseTableSchemaName="portfolio_aud" baseColumnNames="rev"
+                                  referencedTableName="revinfo" referencedTableSchemaName="portfolio_aud" referencedColumnNames="rev"
+                                  constraintName="fk_experiences_aud_rev"/>
+    </changeSet>
+
+    <changeSet id="3" author="jonathanssm" runOnChange="true">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="experience_technologies_aud" schemaName="portfolio_aud"/>
+            </not>
+            <tableExists tableName="technologies_aud" schemaName="portfolio_aud"/>
+        </preConditions>
+        <createTable tableName="experience_technologies_aud" schemaName="portfolio_aud">
+            <column name="experience_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="technology_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="rev" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="revtype" type="SMALLINT"/>
+        </createTable>
+        <addPrimaryKey tableName="experience_technologies_aud" schemaName="portfolio_aud" columnNames="experience_id, technology_id, rev"/>
+        <addForeignKeyConstraint baseTableName="experience_technologies_aud"
+                                 baseTableSchemaName="portfolio_aud"
+                                 baseColumnNames="experience_id"
+                                 referencedTableName="experiences_aud"
+                                 referencedTableSchemaName="portfolio_aud"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_exp_tech_aud_experience"/>
+        <addForeignKeyConstraint baseTableName="experience_technologies_aud"
+                                 baseTableSchemaName="portfolio_aud"
+                                 baseColumnNames="technology_id"
+                                 referencedTableName="technologies_aud"
+                                 referencedTableSchemaName="portfolio_aud"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_exp_tech_aud_technology"/>
+        <addForeignKeyConstraint baseTableName="experience_technologies_aud"
+                                 baseTableSchemaName="portfolio_aud"
+                                 baseColumnNames="rev"
+                                 referencedTableName="revinfo"
+                                 referencedTableSchemaName="portfolio_aud"
+                                 referencedColumnNames="rev"
+                                 constraintName="fk_exp_tech_aud_rev"/>
+    </changeSet>
+</databaseChangeLog>
