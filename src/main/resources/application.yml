@@ -12,11 +12,11 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql:  ${SPRING_JPA_HIBERNATE_SHOW_SQL:true}
+    show-sql:  ${SPRING_JPA_HIBERNATE_SHOW_SQL:false}
     properties:
       org.hibernate.envers.default_schema: portfolio_aud
       hibernate:
-        format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:true}
+        format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:false}
         jdbc.batch_size: 20                     # Melhora performance em inserts em lote
         order_inserts: true                     # Otimiza inserts
         order_updates: true                     # Otimiza updates
