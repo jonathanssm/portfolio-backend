@@ -3,6 +3,7 @@ package com.jonathanssm.portfoliobackend.service;
 import com.jonathanssm.portfoliobackend.dto.ExperienceRequest;
 import com.jonathanssm.portfoliobackend.dto.ExperienceResponse;
 import com.jonathanssm.portfoliobackend.dto.mapper.ExperienceMapper;
+import com.jonathanssm.portfoliobackend.messaging.ExperienceProducer;
 import com.jonathanssm.portfoliobackend.model.Experience;
 import com.jonathanssm.portfoliobackend.model.Technology;
 import com.jonathanssm.portfoliobackend.repository.ExperienceRepository;
@@ -25,18 +26,11 @@ public class ExperienceService {
     private final ExperienceRepository experienceRepository;
     private final TechnologyRepository technologyRepository;
     private final ExperienceMapper experienceMapper;
+    private final ExperienceProducer experienceProducer;
 
-    @Transactional(readOnly = true)
-    public List<ExperienceResponse> getAllExperiences() {
-        log.info("Fetching all experiences with technologies");
-        List<Experience> experiences = experienceRepository.findAllWithTechnologies();
-        return experiences.stream()
-                .map(experienceMapper::toResponse)
-                .toList();
-    }
-
+    @Transactional
     public ExperienceResponse createExperience(ExperienceRequest request) {
-        log.info("Creating new experience: {}", request.title());
+        log.info("📝 Creating new experience: {}", request.title());
 
         Experience experience = experienceMapper.toEntity(request);
 
@@ -47,24 +41,40 @@ public class ExperienceService {
             experience.setTechnologies(technologies);
         }
 
-        Experience savedExperience = experienceRepository.save(experience);
-        return experienceMapper.toResponse(savedExperience);
+        experienceRepository.save(experience);
+        experienceProducer.sendExperienceCreated(experience);
+
+        return experienceMapper.toResponse(experience);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ExperienceResponse> getAllExperiences() {
+        log.info("🔎 Fetching all experiences");
+
+        List<Experience> experiences = experienceRepository.findAllWithTechnologies();
+        List<ExperienceResponse> resp = experiences.stream()
+                .map(experienceMapper::toResponse)
+                .toList();
+
+        experienceProducer.sendExperienceFetched(experiences.size());
+        return resp;
     }
 
     @Transactional(readOnly = true)
     public ExperienceResponse getExperienceById(Long id) {
-        Experience experience = experienceRepository.findByIdWithTechnologies(id)
-                .orElseThrow(() -> new RuntimeException("Experience not found with id: " + id));
+        log.info("🔎 Fetching experience with id: {}", id);
+
+        Experience experience = experienceRepository.findByIdWithTechnologies(id).orElseThrow();
+
+        experienceProducer.sendExperienceFetched(1);
         return experienceMapper.toResponse(experience);
     }
 
-    public void deleteExperience(Long id) {
-        experienceRepository.deleteById(id);
-    }
-
+    @Transactional
     public ExperienceResponse updateExperience(Long id, ExperienceRequest request) {
-        Experience experience = experienceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Experience not found with id: " + id));
+        log.info("♻️ Updating experience with id: {}", id);
+
+        Experience experience = experienceRepository.findById(id).orElseThrow();
 
         experience.setTitle(request.title());
         experience.setCompanyName(request.companyName());
@@ -82,7 +92,18 @@ public class ExperienceService {
             experience.setTechnologies(technologies);
         }
 
-        Experience updatedExperience = experienceRepository.save(experience);
-        return experienceMapper.toResponse(updatedExperience);
+        experienceRepository.saveAndFlush(experience);
+        experienceProducer.sendExperienceUpdated(experience);
+
+        return experienceMapper.toResponse(experience);
+    }
+
+    @Transactional
+    public void deleteExperience(Long id) {
+        log.info("🗑️ Deleting experience with id: {}", id);
+
+        experienceRepository.findById(id).orElseThrow();
+        experienceRepository.deleteById(id);
+        experienceProducer.sendExperienceDeleted(id);
     }
 }
