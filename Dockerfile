@@ -16,5 +16,4 @@ ENV JAVA_OPTS="-Xms128m -Xmx512m"
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
 
-# Aplica JAVA_OPTS
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
