@@ -26,7 +26,7 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_LOG_DIRS: /var/lib/kafka/data
-      CLUSTER_ID: "kafka-cluster-id-123"
+      CLUSTER_ID: "bliValCRQfCWt3d1R9J3Vw"
     ports:
       - "9092:9092"   # para containers internos (Kafdrop)
       - "29092:29092" # para aplicação Java fora do Docker
