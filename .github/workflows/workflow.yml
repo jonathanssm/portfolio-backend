@@ -56,11 +56,9 @@ jobs:
             set -e
             cd /home/ubuntu/backend
 
-            # Atualiza pacotes e instala Docker + Compose Plugin
-            sudo apt-get update
-            sudo apt-get install -y \
-              ca-certificates curl gnupg lsb-release \
-              docker-ce docker-ce-cli docker-compose-plugin
+            # Instala Docker via script oficial
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
 
             # Garante que o Docker está ativo
             sudo systemctl enable --now docker
@@ -73,16 +71,19 @@ jobs:
               --build-arg JAR_FILE=portfolio-backend-0.0.1-SNAPSHOT.jar .
 
             # Para e remove container antigo se existir
-            if sudo docker ps -a --format '{{.Names}}' | grep -Eq '^portfolio-backend$'; then
-              sudo docker stop portfolio-backend || true
-              sudo docker rm portfolio-backend || true
-            fi
+            sudo docker rm -f portfolio-backend || true
+
+            # Exporta variáveis de ambiente para o Docker
+            export SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}"
+            export SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}"
+            export SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}"
+            export SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}"
 
             # Roda o container com variáveis de ambiente
             sudo docker run -d --name portfolio-backend \
               -p 8080:8080 \
-              -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
-              -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
-              -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
-              -e SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}" \
+              -e SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL" \
+              -e SPRING_DATASOURCE_USERNAME="$SPRING_DATASOURCE_USERNAME" \
+              -e SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD" \
+              -e SPRING_KAFKA_BOOTSTRAP_SERVERS="$SPRING_KAFKA_BOOTSTRAP_SERVERS" \
               portfolio-backend:latest
