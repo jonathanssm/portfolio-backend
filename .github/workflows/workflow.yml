@@ -29,7 +29,21 @@ jobs:
       - name: Build JAR
         run: ./mvnw -B clean package -DskipTests
 
-      # 4️⃣ Copiar JAR para a VM
+      # 3.1️⃣ Verificar o JAR gerado (opcional, ajuda a depurar)
+      - name: List JAR
+        run: ls -l backend/target/
+
+      # 4️⃣ Criar diretório na VM antes de copiar
+      - name: Create backend directory on VM
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.BACKEND_VM_IP }}
+          username: ${{ secrets.BACKEND_VM_USER }}
+          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
+          port: 22
+          script: mkdir -p /home/ubuntu/backend
+
+      # 5️⃣ Copiar JAR para a VM (pega qualquer JAR gerado)
       - name: Copy JAR to backend VM
         uses: appleboy/scp-action@v0.1.5
         with:
@@ -37,10 +51,10 @@ jobs:
           username: ${{ secrets.BACKEND_VM_USER }}
           key: ${{ secrets.BACKEND_VM_SSH_KEY }}
           port: 22
-          source: "backend/target/portfolio-backend.jar"
+          source: "backend/target/*.jar"
           target: "/home/ubuntu/backend/portfolio-backend.jar"
 
-      # 5️⃣ Copiar Dockerfile para a VM
+      # 6️⃣ Copiar Dockerfile para a VM
       - name: Copy Dockerfile to backend VM
         uses: appleboy/scp-action@v0.1.5
         with:
@@ -51,7 +65,7 @@ jobs:
           source: "backend/Dockerfile"
           target: "/home/ubuntu/backend/Dockerfile"
 
-      # 6️⃣ Build e deploy usando Dockerfile na VM
+      # 7️⃣ Build e deploy usando Dockerfile na VM
       - name: Build and deploy backend on VM
         uses: appleboy/ssh-action@v0.1.5
         with:
