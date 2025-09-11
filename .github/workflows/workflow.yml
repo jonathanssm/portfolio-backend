@@ -43,7 +43,7 @@ jobs:
           source: "target/portfolio-backend-0.0.1-SNAPSHOT.jar"
           target: "/home/ubuntu/backend/app.jar"
 
-      # 6️⃣ Build e deploy na VM com detecção de arquitetura para Buildx
+      # 6️⃣ Build e deploy na VM
       - name: Build and deploy backend on VM
         uses: appleboy/ssh-action@v0.1.5
         with:
@@ -55,21 +55,9 @@ jobs:
             set -e
             cd /home/ubuntu/backend
 
-            # Detecta arquitetura da VM e define binário Buildx correto
-            ARCH=$(uname -m)
-            if [ "$ARCH" = "aarch64" ]; then
-              BUILDX_ARCH="arm64"
-            else
-              BUILDX_ARCH="amd64"
-            fi
-
-            # Instala Buildx se não existir
-            if ! docker buildx version >/dev/null 2>&1; then
-              echo "Buildx não encontrado. Instalando..."
-              mkdir -p ~/.docker/cli-plugins
-              curl -SL https://github.com/docker/buildx/releases/download/v0.10.5/docker-buildx-linux-$BUILDX_ARCH -o ~/.docker/cli-plugins/docker-buildx
-              chmod +x ~/.docker/cli-plugins/docker-buildx
-            fi
+            # Atualiza pacotes e garante Docker + Buildx instalado
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli docker-buildx-plugin docker-compose-plugin
 
             # Ativa BuildKit
             export DOCKER_BUILDKIT=1
