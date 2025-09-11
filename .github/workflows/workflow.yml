@@ -128,7 +128,7 @@ jobs:
           script: |
             set -e
             cd ${{ env.VM_PATH }}
-            
+
             # 🏷️ Determina ambiente pela branch
             BRANCH="${GITHUB_REF##*/}"
             case "$BRANCH" in
@@ -136,29 +136,38 @@ jobs:
               "develop") ENV="staging" ;;
               *) ENV="dev" ;;
             esac
-            
+
             IMAGE_NAME="portfolio-backend-$ENV"
             CONTAINER_NAME="portfolio-backend-$ENV"
             echo "🚀 Deploying to $ENV environment"
-            
+
             # 🐳 Verifica Docker
             if ! command -v docker &> /dev/null; then
               echo "📦 Installing Docker..."
-              curl -fsSL https://get.docker.com | sudo sh
+              curl -fsSL https://get.docker.com   | sudo sh
               sudo systemctl enable docker
             fi
-            
+
             # 🏗️ Build da imagem
             echo "🔨 Building Docker image..."
             sudo docker build -t $IMAGE_NAME .
-            
+
             # 🔄 Rolling update
             echo "🔄 Performing rolling update"
-            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
-            sudo docker rm $CONTAINER_NAME 2>/dev/null || true
-            
+
+            # ✅ PARTE CRÍTICA: Para e remove containers de TODOS os ambientes ANTES de subir o novo
+            # Isso evita conflito de porta e garante um deploy limpo
+            echo "🧹 Cleaning up old containers..."
+            for old_env in dev staging prod; do
+              if sudo docker ps -a --format '{{.Names}}' | grep -q "^portfolio-backend-$old_env$"; then
+                echo "  → Stopping and removing container: portfolio-backend-$old_env"
+                sudo docker stop "portfolio-backend-$old_env" 2>/dev/null || true
+                sudo docker rm "portfolio-backend-$old_env" 2>/dev/null || true
+              fi
+            done
+
             # 🚀 Executa container
-            echo "🎯 Starting container..."
+            echo "🎯 Starting new container: $CONTAINER_NAME"
             sudo docker run -d \
               --name $CONTAINER_NAME \
               -p 8080:8080 \
@@ -169,5 +178,17 @@ jobs:
               -e SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}" \
               --restart unless-stopped \
               $IMAGE_NAME
-            
-            echo "✅ Deployment completed successfully!"
+
+            # 🔍 Verifica se o container subiu corretamente
+            echo "✅ Deployment completed! Verifying container status..."
+            sleep 3
+            if sudo docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
+              echo "💚 SUCCESS: Container $CONTAINER_NAME is running!"
+              echo "📋 Logs (last 10 lines):"
+              sudo docker logs --tail 10 $CONTAINER_NAME
+            else
+              echo "💔 ERROR: Container $CONTAINER_NAME failed to start."
+              echo "📋 Full logs for debugging:"
+              sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "Container not found."
+              exit 1
+            fi
