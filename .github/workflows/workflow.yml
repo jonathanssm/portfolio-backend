@@ -6,6 +6,10 @@ on:
       - main
       - develop
       - feature/*
+  pull_request:
+    branches:
+      - main
+      - develop
 
 env:
   VM_HOST: ${{ secrets.BACKEND_VM_IP }}
@@ -129,13 +133,20 @@ jobs:
             set -e
             cd ${{ env.VM_PATH }}
 
-            # 🏷️ Determina ambiente pela branch
-            BRANCH="${GITHUB_REF##*/}"
+            # 🏷️ Determina ambiente pela branch de destino (suporta PRs e pushes diretos)
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              BRANCH="$GITHUB_BASE_REF"  # Branch de destino da PR
+            else
+              BRANCH="${GITHUB_REF##*/}" # Branch atual em push direto
+            fi
+
             case "$BRANCH" in
               "main") ENV="prod" ;;
               "develop") ENV="staging" ;;
               *) ENV="dev" ;;
             esac
+
+            echo "🎯 Detected branch: $BRANCH → Environment: $ENV"
 
             IMAGE_NAME="portfolio-backend-$ENV"
             CONTAINER_NAME="portfolio-backend-$ENV"
@@ -144,7 +155,7 @@ jobs:
             # 🐳 Verifica Docker
             if ! command -v docker &> /dev/null; then
               echo "📦 Installing Docker..."
-              curl -fsSL https://get.docker.com   | sudo sh
+              curl -fsSL https://get.docker.com     | sudo sh
               sudo systemctl enable docker
             fi
 
@@ -155,19 +166,17 @@ jobs:
             # 🔄 Rolling update
             echo "🔄 Performing rolling update"
 
-            # ✅ PARTE CRÍTICA: Remove o container do ambiente ATUAL se existir (para liberar porta)
+            # ✅ Remove o container do ambiente ATUAL se existir (para liberar porta)
             echo "🧹 Stopping and removing current environment container (if exists): $CONTAINER_NAME"
             sudo docker stop $CONTAINER_NAME 2>/dev/null || true
             sudo docker rm $CONTAINER_NAME 2>/dev/null || true
 
-            # ✅ PARTE MAIS CRÍTICA: Remove containers de OUTROS ambientes para garantir a porta 8080
+            # ✅ Remove containers de OUTROS ambientes para garantir a porta 8080
             echo "🧹 Aggressively stopping and removing containers from OTHER environments to free port 8080..."
             for other_env in dev staging prod; do
               if [ "$other_env" != "$ENV" ]; then
                 echo "  → Targeting: portfolio-backend-$other_env"
-                # Para o container (ignora erro se não existir)
                 sudo docker stop "portfolio-backend-$other_env" 2>/dev/null || true
-                # Remove o container (ignora erro se não existir)
                 sudo docker rm "portfolio-backend-$other_env" 2>/dev/null || true
               fi
             done
@@ -201,7 +210,6 @@ jobs:
             else
               echo "💔 CRITICAL ERROR: Container '$CONTAINER_NAME' is NOT running!"
               echo "📋 Checking logs for any container that might have failed..."
-              # Lista containers que saíram (exited) recentemente
               sudo docker ps -a --filter "status=exited" --format "table {{.Names}}\t{{.Status}}\t{{.Command}}" --last 5
               echo "📋 Logs from the expected container (if it exists):"
               sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "Container '$CONTAINER_NAME' not found."
