@@ -31,9 +31,9 @@ jobs:
       - name: Build JAR
         run: ./mvnw -B clean package -DskipTests
 
-      # 5️⃣ Listar JAR para verificar se gerou
-      - name: List JAR
-        run: ls -lh target/
+      # 5️⃣ Listar build artifacts para garantir que existem
+      - name: List build artifacts
+        run: ls -lh target/ Dockerfile
 
       # 6️⃣ Garantir que o diretório existe na VM
       - name: Ensure backend directory exists
@@ -47,7 +47,7 @@ jobs:
             mkdir -p /home/ubuntu/backend
             chmod 755 /home/ubuntu/backend
 
-      # 7️⃣ Copiar JAR e Dockerfile para a VM
+      # 7️⃣ Copiar JAR e Dockerfile juntos para a VM
       - name: Copy JAR and Dockerfile to backend VM
         uses: appleboy/scp-action@v0.1.5
         with:
@@ -55,10 +55,8 @@ jobs:
           username: ${{ secrets.BACKEND_VM_USER }}
           key: ${{ secrets.BACKEND_VM_SSH_KEY }}
           port: 22
-          source: |
-            target/portfolio-backend-0.0.1-SNAPSHOT.jar
-            Dockerfile
-          target: /home/ubuntu/backend/
+          source: "target/portfolio-backend-0.0.1-SNAPSHOT.jar,Dockerfile"
+          target: "/home/ubuntu/backend/"
 
       # 8️⃣ Verificar arquivos na VM
       - name: Check backend files in VM
@@ -85,24 +83,28 @@ jobs:
             cd /home/ubuntu/backend
 
             # Determina ambiente baseado na branch
-            case "${GITHUB_REF##*/}" in
-              main) ENV_NAME=prod ;;
-              develop) ENV_NAME=staging ;;
-              *) ENV_NAME=dev ;;
-            esac
+            if [ "${GITHUB_REF##*/}" = "main" ]; then
+              ENV_NAME=prod
+            elif [ "${GITHUB_REF##*/}" = "develop" ]; then
+              ENV_NAME=staging
+            else
+              ENV_NAME=dev
+            fi
 
             IMAGE_NAME="portfolio-backend-${ENV_NAME}"
             CONTAINER_NAME="portfolio-backend-${ENV_NAME}"
 
-            # Verifica se o JAR existe
-            if [ ! -f "portfolio-backend-0.0.1-SNAPSHOT.jar" ] || [ ! -s "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
-              echo "JAR não encontrado ou está vazio!"
+            # Verifica se o JAR existe e não está vazio
+            if [ ! -f "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
+              echo "JAR não encontrado!"
               exit 1
             fi
-            echo "JAR encontrado:"
-            ls -lh portfolio-backend-0.0.1-SNAPSHOT.jar
+            if [ ! -s "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
+              echo "JAR está vazio!"
+              exit 1
+            fi
 
-            # Instala Docker se necessário
+            # Instala Docker apenas se necessário
             if ! command -v docker &> /dev/null; then
               curl -fsSL https://get.docker.com -o get-docker.sh
               sudo sh get-docker.sh
@@ -111,9 +113,9 @@ jobs:
             export DOCKER_BUILDKIT=1
 
             # Build da imagem Docker usando Dockerfile do repo
-            sudo docker build --no-cache -t $IMAGE_NAME --build-arg JAR_FILE=portfolio-backend-0.0.1-SNAPSHOT.jar .
+            sudo docker build --no-cache -t $IMAGE_NAME .
 
-            # Para e remove container antigo
+            # Para e remove container antigo se existir
             sudo docker rm -f $CONTAINER_NAME || true
 
             # Exporta variáveis de ambiente
@@ -130,5 +132,3 @@ jobs:
               -e SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD" \
               -e SPRING_KAFKA_BOOTSTRAP_SERVERS="$SPRING_KAFKA_BOOTSTRAP_SERVERS" \
               $IMAGE_NAME:latest
-
-            echo "Deploy concluído! Aplicação rodando na porta 8080."
