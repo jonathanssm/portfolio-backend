@@ -29,19 +29,18 @@ jobs:
       - name: Build JAR
         run: ./mvnw -B clean package -DskipTests
 
-      - name: List JAR
-        run: ls -l target/
-
-      # 5️⃣ Copiar apenas o JAR para a VM
-      - name: Copy JAR to backend VM
+      # 5️⃣ Copiar JAR e Dockerfile para a VM
+      - name: Copy files to backend VM
         uses: appleboy/scp-action@v0.1.5
         with:
           host: ${{ secrets.BACKEND_VM_IP }}
           username: ${{ secrets.BACKEND_VM_USER }}
           key: ${{ secrets.BACKEND_VM_SSH_KEY }}
           port: 22
-          source: "target/portfolio-backend-0.0.1-SNAPSHOT.jar"
-          target: "/home/ubuntu/backend/app.jar"
+          source: |
+            target/portfolio-backend-0.0.1-SNAPSHOT.jar
+            Dockerfile
+          target: /home/ubuntu/backend/
 
       # 6️⃣ Build e deploy na VM
       - name: Build and deploy backend on VM
@@ -55,7 +54,10 @@ jobs:
             set -e
             cd /home/ubuntu/backend
 
-            # Atualiza pacotes e instala Docker + Compose Plugin
+            # Renomeia o JAR copiado para app.jar (como esperado no Dockerfile)
+            mv -f portfolio-backend-0.0.1-SNAPSHOT.jar app.jar
+
+            # Atualiza pacotes e garante Docker instalado
             sudo apt-get update
             sudo apt-get install -y \
               ca-certificates curl gnupg lsb-release \
@@ -64,10 +66,7 @@ jobs:
             # Garante que o Docker está ativo
             sudo systemctl enable --now docker
 
-            # Ativa BuildKit nativo do Docker
-            export DOCKER_BUILDKIT=1
-
-            # Build da imagem Docker usando Dockerfile do repo
+            # Build da imagem Docker
             sudo docker build -t portfolio-backend .
 
             # Para e remove container antigo se existir
