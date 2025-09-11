@@ -11,118 +11,122 @@ env:
   VM_HOST: ${{ secrets.BACKEND_VM_IP }}
   VM_USER: ${{ secrets.BACKEND_VM_USER }}
   VM_SSH_KEY: ${{ secrets.BACKEND_VM_SSH_KEY }}
-  VM_PORT: 22
   VM_PATH: /home/ubuntu/backend
   JAR_NAME: portfolio-backend-0.0.1-SNAPSHOT.jar
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # 🔽 Baixa apenas o commit atual
 
-      - name: Setup Java
+      - name: Setup Java and Cache
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: 'maven'  # 🔼 Cache das dependências Maven
 
-      - name: Build JAR
+      - name: Build JAR with caching
         run: |
           chmod +x ./mvnw
-          ./mvnw -B clean package -DskipTests
+          ./mvnw -B clean package -DskipTests -T 1C  # 🔼 Paralelismo
 
-      - name: Verify build artifacts
+      - name: Verify and prepare artifacts
         run: |
           ls -la target/$JAR_NAME
           [ -s target/$JAR_NAME ] || exit 1
+          cp target/$JAR_NAME .  # ✅ Compatível com Dockerfile
 
-      - name: Prepare Docker artifacts
-        run: |
-          # Copia o JAR para o diretório raiz para compatibilidade com Dockerfile
-          cp target/$JAR_NAME .
-          ls -la $JAR_NAME Dockerfile
-
-      - name: Deploy to VM
+      - name: Setup SSH connection
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ env.VM_HOST }}
           username: ${{ env.VM_USER }}
           key: ${{ env.VM_SSH_KEY }}
-          port: ${{ env.VM_PORT }}
+          port: 22
           script: |
-            set -e
             mkdir -p ${{ env.VM_PATH }}
-            cd ${{ env.VM_PATH }}
-            echo "Directory prepared for deployment"
+            echo "VM directory ready"
 
-      - name: Copy files to VM
+      - name: Copy artifacts to VM
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ env.VM_HOST }}
           username: ${{ env.VM_USER }}
           key: ${{ env.VM_SSH_KEY }}
-          port: ${{ env.VM_PORT }}
           source: "${{ env.JAR_NAME }},Dockerfile"
           target: ${{ env.VM_PATH }}
           overwrite: true
 
-      - name: Build and run Docker container
+      - name: Deploy Docker container
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ env.VM_HOST }}
           username: ${{ env.VM_USER }}
           key: ${{ env.VM_SSH_KEY }}
-          port: ${{ env.VM_PORT }}
           script: |
             set -e
             cd ${{ env.VM_PATH }}
             
-            # Environment setup
-            BRANCH=$(echo "$GITHUB_REF" | awk -F/ '{print $NF}')
-            if [ "$BRANCH" = "main" ]; then
-              ENV="prod"
-            elif [ "$BRANCH" = "develop" ]; then
-              ENV="staging"
-            else
-              ENV="dev"
-            fi
+            # 🏷️ Determina ambiente pela branch
+            BRANCH="${GITHUB_REF##*/}"
+            case "$BRANCH" in
+              "main") ENV="prod" ;;
+              "develop") ENV="staging" ;;
+              *) ENV="dev" ;;
+            esac
             
             IMAGE_NAME="portfolio-backend-$ENV"
             CONTAINER_NAME="portfolio-backend-$ENV"
-            echo "Deploying to $ENV environment"
+            echo "🚀 Deploying to $ENV environment"
             
-            # Install Docker if not present (sem adicionar usuário ao grupo docker)
+            # 🐳 Verifica se Docker está instalado
             if ! command -v docker &> /dev/null; then
-              echo "Installing Docker..."
-              curl -fsSL https://get.docker.com -o get-docker.sh
-              sudo sh get-docker.sh
+              echo "📦 Installing Docker..."
+              curl -fsSL https://get.docker.com | sudo sh
+              sudo systemctl enable docker
             fi
             
-            # Build Docker image (sem sudo, usando grupo docker)
-            echo "Building Docker image: $IMAGE_NAME"
-            sudo docker build -t $IMAGE_NAME . --no-cache
+            # 🏗️ Build da imagem com cache e build args
+            echo "🔨 Building Docker image: $IMAGE_NAME"
+            sudo docker build \
+              --build-arg JAR_FILE=$JAR_NAME \
+              -t $IMAGE_NAME:latest \
+              -t $IMAGE_NAME:$GITHUB_SHA \
+              .
             
-            # Stop and remove existing container
-            echo "Stopping existing container: $CONTAINER_NAME"
-            sudo docker rm -f $CONTAINER_NAME 2>/dev/null || true
+            # 🔄 Rolling update
+            echo "🔄 Performing rolling update"
+            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+            sudo docker rm $CONTAINER_NAME 2>/dev/null || true
             
-            # Run new container com variáveis de ambiente
-            echo "Starting new container: $CONTAINER_NAME"
-            sudo docker run -d --name $CONTAINER_NAME \
+            # 🚀 Executa container
+            echo "🎯 Starting container: $CONTAINER_NAME"
+            sudo docker run -d \
+              --name $CONTAINER_NAME \
+              --network host \
               -p 8080:8080 \
+              -e SPRING_PROFILES_ACTIVE=$ENV \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
               -e SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}" \
-              -e SPRING_PROFILES_ACTIVE="$ENV" \
               --restart unless-stopped \
-              $IMAGE_NAME
+              --health-cmd="curl -f http://localhost:8080/actuator/health || exit 1" \
+              --health-interval=30s \
+              --health-timeout=5s \
+              --health-start-period=40s \
+              $IMAGE_NAME:latest
             
-            # Cleanup
-            echo "Cleaning up old images..."
-            sudo docker image prune -af --filter "until=24h"
+            # 🧹 Cleanup
+            echo "🧹 Cleaning up old images..."
+            sudo docker image prune -af --filter "until=48h"
             
-            echo "Deployment completed successfully!"
+            echo "✅ Deployment completed successfully!"
+            
