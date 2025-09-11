@@ -56,48 +56,57 @@ jobs:
             set -e
             cd /home/ubuntu/backend
 
+            # Determina ambiente baseado na branch
+            if [ "${GITHUB_REF##*/}" = "main" ]; then
+              ENV_NAME=prod
+            elif [ "${GITHUB_REF##*/}" = "develop" ]; then
+              ENV_NAME=staging
+            else
+              ENV_NAME=dev
+            fi
+
+            IMAGE_NAME="portfolio-backend-${ENV_NAME}"
+            CONTAINER_NAME="portfolio-backend-${ENV_NAME}"
+
             # Verifica se o JAR existe e não está vazio
             if [ ! -f "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
               echo "JAR não encontrado!"
               exit 1
             fi
-
             if [ ! -s "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
               echo "JAR está vazio!"
               exit 1
             fi
-
-            echo "JAR encontrado e válido:"
+            echo "JAR encontrado:"
             ls -lh portfolio-backend-0.0.1-SNAPSHOT.jar
             file portfolio-backend-0.0.1-SNAPSHOT.jar
 
-            # Instala Docker se necessário
+            # Instala Docker apenas se necessário
             if ! command -v docker &> /dev/null; then
               curl -fsSL https://get.docker.com -o get-docker.sh
               sudo sh get-docker.sh
             fi
-
             sudo systemctl enable --now docker
             export DOCKER_BUILDKIT=1
 
-            # Build da imagem Docker sem cache
-            sudo docker build --no-cache -t portfolio-backend \
+            # Build da imagem Docker sem cache apenas se necessário
+            sudo docker build --no-cache -t $IMAGE_NAME \
               --build-arg JAR_FILE=portfolio-backend-0.0.1-SNAPSHOT.jar .
 
             # Para e remove container antigo se existir
-            sudo docker rm -f portfolio-backend || true
+            sudo docker rm -f $CONTAINER_NAME || true
 
-            # Exporta variáveis de ambiente para o container
+            # Exporta variáveis de ambiente
             export SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}"
             export SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}"
             export SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}"
             export SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}"
 
             # Roda o container
-            sudo docker run -d --name portfolio-backend \
+            sudo docker run -d --name $CONTAINER_NAME \
               -p 8080:8080 \
               -e SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL" \
               -e SPRING_DATASOURCE_USERNAME="$SPRING_DATASOURCE_USERNAME" \
               -e SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD" \
               -e SPRING_KAFKA_BOOTSTRAP_SERVERS="$SPRING_KAFKA_BOOTSTRAP_SERVERS" \
-              portfolio-backend:latest
+              $IMAGE_NAME:latest
