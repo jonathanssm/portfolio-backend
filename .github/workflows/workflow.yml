@@ -204,4 +204,6 @@ jobs:
               # Lista containers que saíram (exited) recentemente
               sudo docker ps -a --filter "status=exited" --format "table {{.Names}}\t{{.Status}}\t{{.Command}}" --last 5
               echo "📋 Logs from the expected container (if it exists):"
-              sudo
+              sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "Container '$CONTAINER_NAME' not found."
+              exit 1
+            fi
