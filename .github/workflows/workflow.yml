@@ -79,8 +79,8 @@ jobs:
           script: |
             mkdir -p ${{ env.VM_PATH }}
             cd ${{ env.VM_PATH }}
-            # ✅ Limpa arquivos anteriores completamente
-            rm -f *.jar Dockerfile 2>/dev/null || true
+            # ✅ Limpa arquivos e diretórios anteriores completamente
+            rm -rf *.jar Dockerfile 2>/dev/null || true
             echo "VM directory cleaned and ready"
 
       - name: Copy artifacts to VM
