@@ -55,21 +55,13 @@ jobs:
             set -e
             cd /home/ubuntu/backend
 
-            # Atualiza pacotes e instala Docker + Buildx + Compose Plugin
+            # Atualiza pacotes e instala Docker + Compose Plugin
             sudo apt-get update
-            sudo apt-get install -y ca-certificates curl gnupg lsb-release
+            sudo apt-get install -y \
+              ca-certificates curl gnupg lsb-release \
+              docker-ce docker-ce-cli docker-compose-plugin
 
-            sudo mkdir -p /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-            echo \
-              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
-              | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-            sudo apt-get update
-            sudo apt-get install -y docker-ce docker-ce-cli docker-buildx-plugin docker-compose-plugin
-
-            # Ativa BuildKit
+            # Ativa BuildKit nativo do Docker
             export DOCKER_BUILDKIT=1
 
             # Build da imagem Docker usando Dockerfile do repo
