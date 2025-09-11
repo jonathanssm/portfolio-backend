@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - develop
+      - feature/*
 
 jobs:
   build-and-deploy:
@@ -33,7 +35,19 @@ jobs:
       - name: List JAR
         run: ls -l target/
 
-      # 6️⃣ Copiar JAR para a VM
+      # 6️⃣ Garantir que o diretório existe na VM
+      - name: Ensure backend directory exists
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.BACKEND_VM_IP }}
+          username: ${{ secrets.BACKEND_VM_USER }}
+          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
+          port: 22
+          script: |
+            mkdir -p /home/ubuntu/backend
+            chmod 755 /home/ubuntu/backend
+
+      # 7️⃣ Copiar JAR para a VM
       - name: Copy JAR to backend VM
         uses: appleboy/scp-action@v0.1.5
         with:
@@ -44,7 +58,7 @@ jobs:
           source: "target/portfolio-backend-0.0.1-SNAPSHOT.jar"
           target: "/home/ubuntu/backend/portfolio-backend-0.0.1-SNAPSHOT.jar"
 
-      # 7️⃣ Build e deploy na VM
+      # 8️⃣ Build e deploy na VM
       - name: Build and deploy backend on VM
         uses: appleboy/ssh-action@v0.1.5
         with:
@@ -89,7 +103,7 @@ jobs:
             sudo systemctl enable --now docker
             export DOCKER_BUILDKIT=1
 
-            # Build da imagem Docker sem cache apenas se necessário
+            # Build da imagem Docker sem cache
             sudo docker build --no-cache -t $IMAGE_NAME \
               --build-arg JAR_FILE=portfolio-backend-0.0.1-SNAPSHOT.jar .
 
