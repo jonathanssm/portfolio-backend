@@ -11,16 +11,11 @@ COPY portfolio-backend.jar app.jar
 EXPOSE 8080
 
 # Variáveis de ambiente para controlar memória do Java
-# Pode ser sobrescrito via docker run -e JAVA_OPTS="..."
 ENV JAVA_OPTS="-Xms128m -Xmx512m"
 
-# Healthcheck para monitorar se a aplicação está rodando
-# Retorna 1 se o endpoint não estiver pronto
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
 
 # Entry point aplicando JAVA_OPTS
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
-
-# Opcional: se você quiser usar logs em stdout/stderr para integração com Docker logging
-# RUN ln -sf /dev/stdout /app/logs/app.log

@@ -31,7 +31,7 @@ jobs:
 
       # 3.1️⃣ Verificar o JAR gerado (opcional, ajuda a depurar)
       - name: List JAR
-        run: ls -l backend/target/
+        run: ls -l target/
 
       # 4️⃣ Criar diretório na VM antes de copiar
       - name: Create backend directory on VM
@@ -51,7 +51,7 @@ jobs:
           username: ${{ secrets.BACKEND_VM_USER }}
           key: ${{ secrets.BACKEND_VM_SSH_KEY }}
           port: 22
-          source: "backend/target/*.jar"
+          source: "target/*.jar"
           target: "/home/ubuntu/backend/portfolio-backend.jar"
 
       # 6️⃣ Copiar Dockerfile para a VM
@@ -62,7 +62,7 @@ jobs:
           username: ${{ secrets.BACKEND_VM_USER }}
           key: ${{ secrets.BACKEND_VM_SSH_KEY }}
           port: 22
-          source: "backend/Dockerfile"
+          source: "Dockerfile"
           target: "/home/ubuntu/backend/Dockerfile"
 
       # 7️⃣ Build e deploy usando Dockerfile na VM
@@ -76,14 +76,11 @@ jobs:
           script: |
             set -e
             cd /home/ubuntu/backend
-            # Build da imagem usando Dockerfile
             docker build -t portfolio-backend .
-            # Parar e remover container antigo
             if docker ps -a --format '{{.Names}}' | grep -Eq '^portfolio-backend$'; then
               docker stop portfolio-backend || true
               docker rm portfolio-backend || true
             fi
-            # Rodar container com variáveis de ambiente
             docker run -d --name portfolio-backend \
               -p 8080:8080 \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
