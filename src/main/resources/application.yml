@@ -2,6 +2,7 @@ spring:
   application:
     name: portfolio-backend
 
+# Remover depois que implementar o auth
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
@@ -10,12 +11,12 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
-    show-sql: false
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql:  ${SPRING_JPA_HIBERNATE_SHOW_SQL:false}
     properties:
       org.hibernate.envers.default_schema: portfolio_aud
       hibernate:
-        format_sql: true
+        format_sql: ${SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL:false}
         jdbc.batch_size: 20                     # Melhora performance em inserts em lote
         order_inserts: true                     # Otimiza inserts
         order_updates: true                     # Otimiza updates
@@ -23,12 +24,11 @@ spring:
         default_schema: portfolio
 
   liquibase:
-    enabled: true
+    enabled: ${SPRING_LIQUIBASE_ENABLED:true}
     change-log: classpath:db/changelog/db.changelog-master.xml
     default-schema: portfolio_aud
     liquibase-schema: public
     drop-first: false
-    contexts: dev
     parameters:
       logLevel: INFO
 
@@ -38,15 +38,16 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
 
   kafka:
-    bootstrap-servers: localhost:29092
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
       group-id: portfolio-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties.spring.json.trusted.packages: com.jonathanssm.portfoliobackend.model.event.*
 
 logging:
   level:
@@ -60,10 +61,5 @@ logging:
     name: logs/application.log
 
 management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: always
+  endpoints.web.exposure.include: health,info,metrics
+  endpoint.health.show-details: always

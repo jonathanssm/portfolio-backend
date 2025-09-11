@@ -20,6 +20,13 @@ public class ExperienceController {
 
     private final ExperienceService experienceService;
 
+    @PostMapping
+    public ResponseEntity<ExperienceResponse> createExperience(
+            @Valid @RequestBody ExperienceRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(experienceService.createExperience(request));
+    }
+
     @GetMapping
     public ResponseEntity<List<ExperienceResponse>> getAllExperiences() {
         return ResponseEntity.ok(experienceService.getAllExperiences());
@@ -28,13 +35,6 @@ public class ExperienceController {
     @GetMapping("/{id}")
     public ResponseEntity<ExperienceResponse> getExperienceById(@PathVariable Long id) {
         return ResponseEntity.ok(experienceService.getExperienceById(id));
-    }
-
-    @PostMapping
-    public ResponseEntity<ExperienceResponse> createExperience(
-            @Valid @RequestBody ExperienceRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(experienceService.createExperience(request));
     }
 
     @PutMapping("/{id}")

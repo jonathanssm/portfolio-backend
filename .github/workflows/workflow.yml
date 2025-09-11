@@ -1,0 +1,75 @@
+name: Deploy backend to VM (backend + docker)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout do repositório
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Set up JDK 21 (para build com Maven)
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # 3️⃣ Build JAR
+      - name: Build JAR
+        run: ./mvnw -B clean package -DskipTests
+
+      # 4️⃣ Copiar JAR para a VM
+      - name: Copy JAR to backend VM
+        uses: appleboy/scp-action@v0.1.5
+        with:
+          host: ${{ secrets.BACKEND_VM_IP }}
+          username: ${{ secrets.BACKEND_VM_USER }}
+          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
+          port: 22
+          source: "backend/target/portfolio-backend.jar"
+          target: "/home/ubuntu/backend/portfolio-backend.jar"
+
+      # 5️⃣ Copiar Dockerfile para a VM
+      - name: Copy Dockerfile to backend VM
+        uses: appleboy/scp-action@v0.1.5
+        with:
+          host: ${{ secrets.BACKEND_VM_IP }}
+          username: ${{ secrets.BACKEND_VM_USER }}
+          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
+          port: 22
+          source: "backend/Dockerfile"
+          target: "/home/ubuntu/backend/Dockerfile"
+
+      # 6️⃣ Build e deploy usando Dockerfile na VM
+      - name: Build and deploy backend on VM
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.BACKEND_VM_IP }}
+          username: ${{ secrets.BACKEND_VM_USER }}
+          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /home/ubuntu/backend
+            # Build da imagem usando Dockerfile
+            docker build -t portfolio-backend .
+            # Parar e remover container antigo
+            if docker ps -a --format '{{.Names}}' | grep -Eq '^portfolio-backend$'; then
+              docker stop portfolio-backend || true
+              docker rm portfolio-backend || true
+            fi
+            # Rodar container com variáveis de ambiente
+            docker run -d --name portfolio-backend \
+              -p 8080:8080 \
+              -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
+              -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
+              -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
+              -e SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}" \
+              portfolio-backend:latest
