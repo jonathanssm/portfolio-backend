@@ -12,6 +12,11 @@ on:
       - main
       - develop
 
+concurrency:
+  #group: backend-deploy-${{ github.ref }} #caso queira que não cancele para branch diferentes
+  group: backend-deploy
+  cancel-in-progress: true
+
 env:
   VM_HOST: ${{ secrets.BACKEND_VM_IP }}
   VM_USER: ${{ secrets.BACKEND_VM_USER }}
