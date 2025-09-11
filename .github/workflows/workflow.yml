@@ -21,18 +21,30 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # 3️⃣ Dar permissão ao Maven Wrapper
       - name: Give execute permission to Maven wrapper
         run: chmod +x ./mvnw
 
-      # 3️⃣ Build JAR
+      # 4️⃣ Build do JAR
       - name: Build JAR
         run: ./mvnw -B clean package -DskipTests
 
       - name: List JAR
         run: ls -l target/
 
-      # 4️⃣ Deploy e build Docker na VM diretamente a partir do repositório
-      - name: Build and deploy backend on VM using repo Dockerfile
+      # 5️⃣ Copiar apenas o JAR para a VM
+      - name: Copy JAR to backend VM
+        uses: appleboy/scp-action@v0.1.5
+        with:
+          host: ${{ secrets.BACKEND_VM_IP }}
+          username: ${{ secrets.BACKEND_VM_USER }}
+          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
+          port: 22
+          source: "target/portfolio-backend-0.0.1-SNAPSHOT.jar"
+          target: "/home/ubuntu/backend/app.jar"
+
+      # 6️⃣ Build e deploy na VM usando Dockerfile do repo
+      - name: Build and deploy backend on VM
         uses: appleboy/ssh-action@v0.1.5
         with:
           host: ${{ secrets.BACKEND_VM_IP }}
@@ -41,12 +53,12 @@ jobs:
           port: 22
           script: |
             set -e
-            # Cria pasta e copia código (opcional: você pode clonar direto do repo na VM)
-            mkdir -p /home/ubuntu/backend
-            rsync -av --exclude='.git' ./ /home/ubuntu/backend/
             cd /home/ubuntu/backend
 
-            # Build Docker usando Dockerfile do repositório
+            # Ativa BuildKit
+            export DOCKER_BUILDKIT=1
+
+            # Build da imagem Docker usando Dockerfile existente no repo
             docker build -t portfolio-backend .
 
             # Para e remove container antigo se existir
@@ -55,7 +67,7 @@ jobs:
               docker rm portfolio-backend || true
             fi
 
-            # Roda o container
+            # Roda o container com variáveis de ambiente
             docker run -d --name portfolio-backend \
               -p 8080:8080 \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
