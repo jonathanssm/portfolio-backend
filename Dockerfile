@@ -1,19 +1,18 @@
-# Imagem base leve com JDK 21
-FROM eclipse-temurin:21-jdk-alpine
+FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Recebe o nome do JAR como build-arg
-ARG JAR_FILE=portfolio-backend-0.0.1-SNAPSHOT.jar
-COPY ${JAR_FILE} app.jar
+# ✅ Copia o JAR com nome correto
+COPY portfolio-backend-0.0.1-SNAPSHOT.jar app.jar
 
-# Instala wget para healthcheck
-RUN apk add --no-cache wget
+# ✅ Instala curl mínimo
+RUN apk add --no-cache curl
 
 EXPOSE 8080
-ENV JAVA_OPTS="-Xms128m -Xmx512m"
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+# ✅ Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
+  CMD curl -f http://localhost:8080/actuator/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+# ✅ Entrypoint simples
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

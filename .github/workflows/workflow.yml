@@ -1,112 +1,173 @@
-name: Deploy backend to VM (backend + docker)
+name: Deploy Backend to VM
 
 on:
   push:
     branches:
       - main
+      - develop
+      - feature/*
+
+env:
+  VM_HOST: ${{ secrets.BACKEND_VM_IP }}
+  VM_USER: ${{ secrets.BACKEND_VM_USER }}
+  VM_SSH_KEY: ${{ secrets.BACKEND_VM_SSH_KEY }}
+  VM_PATH: /home/ubuntu/backend
+  JAR_NAME: portfolio-backend-0.0.1-SNAPSHOT.jar
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-      # 1️⃣ Checkout do repositório
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      # 2️⃣ Set up JDK 21
-      - name: Set up JDK 21
+      - name: Setup Java and Cache
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '21'
+          cache: 'maven'
 
-      # 3️⃣ Dar permissão ao Maven Wrapper
-      - name: Give execute permission to Maven wrapper
-        run: chmod +x ./mvnw
+      - name: Build JAR with verification
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -B clean package -DskipTests -T 1C
+          
+          # ✅ Verificação robusta do JAR
+          echo "Verifying JAR file..."
+          if [ ! -f "target/$JAR_NAME" ]; then
+            echo "❌ JAR file not found in target/"
+            ls -la target/
+            exit 1
+          fi
+          
+          if [ ! -s "target/$JAR_NAME" ]; then
+            echo "❌ JAR file is empty"
+            ls -lh target/
+            exit 1
+          fi
+          
+          # ✅ Testa se é um arquivo válido
+          if file "target/$JAR_NAME" | grep -q "Java archive"; then
+            echo "✅ JAR file is valid"
+          else
+            echo "❌ JAR file is not a valid Java archive"
+            file "target/$JAR_NAME"
+            exit 1
+          fi
 
-      # 4️⃣ Build do JAR
-      - name: Build JAR
-        run: ./mvnw -B clean package -DskipTests
+      - name: Prepare artifacts with checksum
+        run: |
+          # ✅ Copia e verifica integridade
+          cp target/$JAR_NAME .
+          ls -la $JAR_NAME Dockerfile
+          
+          # ✅ Checksum para verificação
+          md5sum $JAR_NAME > jar_checksum.txt
+          echo "JAR checksum: $(md5sum $JAR_NAME)"
 
-      # 5️⃣ Listar JAR
-      - name: List JAR
-        run: ls -l target/
-
-      # 6️⃣ Copiar JAR para a VM
-      - name: Copy JAR to backend VM
-        uses: appleboy/scp-action@v0.1.5
+      - name: Setup VM directory
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
-          source: "target/portfolio-backend-0.0.1-SNAPSHOT.jar"
-          target: "/home/ubuntu/backend/portfolio-backend-0.0.1-SNAPSHOT.jar"
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
+          script: |
+            mkdir -p ${{ env.VM_PATH }}
+            cd ${{ env.VM_PATH }}
+            # ✅ Limpa arquivos e diretórios anteriores completamente
+            rm -rf *.jar Dockerfile 2>/dev/null || true
+            echo "VM directory cleaned and ready"
 
-      # 7️⃣ Build e deploy na VM
-      - name: Build and deploy backend on VM
-        uses: appleboy/ssh-action@v0.1.5
+      - name: Copy artifacts to VM
+        uses: appleboy/scp-action@v0.1.4
         with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
+          source: "${{ env.JAR_NAME }},Dockerfile"
+          target: ${{ env.VM_PATH }}
+          overwrite: true
+
+      - name: Verify artifacts on VM
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
           script: |
             set -e
-            cd /home/ubuntu/backend
-
-            # Determina ambiente baseado na branch
-            if [ "${GITHUB_REF##*/}" = "main" ]; then
-              ENV_NAME=prod
-            elif [ "${GITHUB_REF##*/}" = "develop" ]; then
-              ENV_NAME=staging
-            else
-              ENV_NAME=dev
-            fi
-
-            IMAGE_NAME="portfolio-backend-${ENV_NAME}"
-            CONTAINER_NAME="portfolio-backend-${ENV_NAME}"
-
-            # Verifica se o JAR existe e não está vazio
-            if [ ! -f "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
-              echo "JAR não encontrado!"
+            cd ${{ env.VM_PATH }}
+            
+            echo "📦 Verifying artifacts on VM..."
+            ls -la
+            
+            # ✅ Verifica se os arquivos são válidos
+            if [ ! -f "${{ env.JAR_NAME }}" ]; then
+              echo "❌ JAR not found on VM"
               exit 1
             fi
-            if [ ! -s "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
-              echo "JAR está vazio!"
+            
+            if [ ! -s "${{ env.JAR_NAME }}" ]; then
+              echo "❌ JAR is empty on VM"
               exit 1
             fi
-            echo "JAR encontrado:"
-            ls -lh portfolio-backend-0.0.1-SNAPSHOT.jar
-            file portfolio-backend-0.0.1-SNAPSHOT.jar
+            
+            echo "✅ All artifacts verified successfully"
 
-            # Instala Docker apenas se necessário
+      - name: Deploy Docker container
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ env.VM_PATH }}
+            
+            # 🏷️ Determina ambiente pela branch
+            BRANCH="${GITHUB_REF##*/}"
+            case "$BRANCH" in
+              "main") ENV="prod" ;;
+              "develop") ENV="staging" ;;
+              *) ENV="dev" ;;
+            esac
+            
+            IMAGE_NAME="portfolio-backend-$ENV"
+            CONTAINER_NAME="portfolio-backend-$ENV"
+            echo "🚀 Deploying to $ENV environment"
+            
+            # 🐳 Verifica Docker
             if ! command -v docker &> /dev/null; then
-              curl -fsSL https://get.docker.com -o get-docker.sh
-              sudo sh get-docker.sh
+              echo "📦 Installing Docker..."
+              curl -fsSL https://get.docker.com | sudo sh
+              sudo systemctl enable docker
             fi
-            sudo systemctl enable --now docker
-            export DOCKER_BUILDKIT=1
-
-            # Build da imagem Docker sem cache apenas se necessário
-            sudo docker build --no-cache -t $IMAGE_NAME \
-              --build-arg JAR_FILE=portfolio-backend-0.0.1-SNAPSHOT.jar .
-
-            # Para e remove container antigo se existir
-            sudo docker rm -f $CONTAINER_NAME || true
-
-            # Exporta variáveis de ambiente
-            export SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}"
-            export SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}"
-            export SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}"
-            export SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}"
-
-            # Roda o container
-            sudo docker run -d --name $CONTAINER_NAME \
+            
+            # 🏗️ Build da imagem
+            echo "🔨 Building Docker image..."
+            sudo docker build -t $IMAGE_NAME .
+            
+            # 🔄 Rolling update
+            echo "🔄 Performing rolling update"
+            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+            sudo docker rm $CONTAINER_NAME 2>/dev/null || true
+            
+            # 🚀 Executa container
+            echo "🎯 Starting container..."
+            sudo docker run -d \
+              --name $CONTAINER_NAME \
               -p 8080:8080 \
-              -e SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL" \
-              -e SPRING_DATASOURCE_USERNAME="$SPRING_DATASOURCE_USERNAME" \
-              -e SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD" \
-              -e SPRING_KAFKA_BOOTSTRAP_SERVERS="$SPRING_KAFKA_BOOTSTRAP_SERVERS" \
-              $IMAGE_NAME:latest
+              -e SPRING_PROFILES_ACTIVE=$ENV \
+              -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
+              -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
+              -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
+              -e SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}" \
+              --restart unless-stopped \
+              $IMAGE_NAME
+            
+            echo "✅ Deployment completed successfully!"
