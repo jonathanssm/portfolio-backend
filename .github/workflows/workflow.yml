@@ -21,6 +21,10 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # 2.1️⃣ Dar permissão de execução ao mvnw
+      - name: Give execute permission to Maven wrapper
+        run: chmod +x ./mvnw
+
       # 3️⃣ Build JAR
       - name: Build JAR
         run: ./mvnw -B clean package -DskipTests
