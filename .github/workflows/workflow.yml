@@ -31,7 +31,7 @@ jobs:
       - name: Build JAR
         run: ./mvnw -B clean package -DskipTests
 
-      # 5️⃣ Listar JAR
+      # 5️⃣ Listar JAR para verificar se gerou
       - name: List JAR
         run: ls -l target/
 
@@ -58,7 +58,19 @@ jobs:
           source: "target/portfolio-backend-0.0.1-SNAPSHOT.jar"
           target: "/home/ubuntu/backend/portfolio-backend-0.0.1-SNAPSHOT.jar"
 
-      # 8️⃣ Build e deploy na VM
+      # 8️⃣ Verificar se o JAR chegou na VM
+      - name: Check JAR in VM
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.BACKEND_VM_IP }}
+          username: ${{ secrets.BACKEND_VM_USER }}
+          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
+          port: 22
+          script: |
+            echo "Arquivos no backend:"
+            ls -lh /home/ubuntu/backend/
+
+      # 9️⃣ Build e deploy na VM
       - name: Build and deploy backend on VM
         uses: appleboy/ssh-action@v0.1.5
         with:
