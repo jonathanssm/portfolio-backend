@@ -61,20 +61,23 @@ jobs:
               ca-certificates curl gnupg lsb-release \
               docker-ce docker-ce-cli docker-compose-plugin
 
+            # Garante que o Docker está ativo
+            sudo systemctl enable --now docker
+
             # Ativa BuildKit nativo do Docker
             export DOCKER_BUILDKIT=1
 
             # Build da imagem Docker usando Dockerfile do repo
-            docker build -t portfolio-backend .
+            sudo docker build -t portfolio-backend .
 
             # Para e remove container antigo se existir
-            if docker ps -a --format '{{.Names}}' | grep -Eq '^portfolio-backend$'; then
-              docker stop portfolio-backend || true
-              docker rm portfolio-backend || true
+            if sudo docker ps -a --format '{{.Names}}' | grep -Eq '^portfolio-backend$'; then
+              sudo docker stop portfolio-backend || true
+              sudo docker rm portfolio-backend || true
             fi
 
             # Roda o container com variáveis de ambiente
-            docker run -d --name portfolio-backend \
+            sudo docker run -d --name portfolio-backend \
               -p 8080:8080 \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
