@@ -155,19 +155,25 @@ jobs:
             # 🔄 Rolling update
             echo "🔄 Performing rolling update"
 
-            # ✅ PARTE CRÍTICA: Para e remove containers de TODOS os ambientes ANTES de subir o novo
-            # Isso evita conflito de porta e garante um deploy limpo
-            echo "🧹 Cleaning up old containers..."
-            for old_env in dev staging prod; do
-              if sudo docker ps -a --format '{{.Names}}' | grep -q "^portfolio-backend-$old_env$"; then
-                echo "  → Stopping and removing container: portfolio-backend-$old_env"
-                sudo docker stop "portfolio-backend-$old_env" 2>/dev/null || true
-                sudo docker rm "portfolio-backend-$old_env" 2>/dev/null || true
+            # ✅ PARTE CRÍTICA: Remove o container do ambiente ATUAL se existir (para liberar porta)
+            echo "🧹 Stopping and removing current environment container (if exists): $CONTAINER_NAME"
+            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+            sudo docker rm $CONTAINER_NAME 2>/dev/null || true
+
+            # ✅ PARTE MAIS CRÍTICA: Remove containers de OUTROS ambientes para garantir a porta 8080
+            echo "🧹 Aggressively stopping and removing containers from OTHER environments to free port 8080..."
+            for other_env in dev staging prod; do
+              if [ "$other_env" != "$ENV" ]; then
+                echo "  → Targeting: portfolio-backend-$other_env"
+                # Para o container (ignora erro se não existir)
+                sudo docker stop "portfolio-backend-$other_env" 2>/dev/null || true
+                # Remove o container (ignora erro se não existir)
+                sudo docker rm "portfolio-backend-$other_env" 2>/dev/null || true
               fi
             done
 
             # 🚀 Executa container
-            echo "🎯 Starting new container: $CONTAINER_NAME"
+            echo "🎯 Starting NEW container: $CONTAINER_NAME"
             sudo docker run -d \
               --name $CONTAINER_NAME \
               -p 8080:8080 \
@@ -179,16 +185,23 @@ jobs:
               --restart unless-stopped \
               $IMAGE_NAME
 
-            # 🔍 Verifica se o container subiu corretamente
+            # 🔍 Verificação Pós-Deploy: Confirma que o container correto está rodando
             echo "✅ Deployment completed! Verifying container status..."
-            sleep 3
+            sleep 5 # Dá tempo para o container iniciar
+
+            # Lista todos os containers ativos
+            echo "📋 Currently running containers:"
+            sudo docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+            # Verifica se o container esperado está na lista
             if sudo docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
-              echo "💚 SUCCESS: Container $CONTAINER_NAME is running!"
-              echo "📋 Logs (last 10 lines):"
-              sudo docker logs --tail 10 $CONTAINER_NAME
+              echo "💚 SUCCESS: Container '$CONTAINER_NAME' is running and healthy!"
+              echo "📋 Application Logs (last 15 lines):"
+              sudo docker logs --tail 15 $CONTAINER_NAME
             else
-              echo "💔 ERROR: Container $CONTAINER_NAME failed to start."
-              echo "📋 Full logs for debugging:"
-              sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "Container not found."
-              exit 1
-            fi
+              echo "💔 CRITICAL ERROR: Container '$CONTAINER_NAME' is NOT running!"
+              echo "📋 Checking logs for any container that might have failed..."
+              # Lista containers que saíram (exited) recentemente
+              sudo docker ps -a --filter "status=exited" --format "table {{.Names}}\t{{.Status}}\t{{.Command}}" --last 5
+              echo "📋 Logs from the expected container (if it exists):"
+              sudo
