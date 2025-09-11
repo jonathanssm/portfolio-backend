@@ -4,8 +4,11 @@ FROM eclipse-temurin:21-jdk-alpine
 # Diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copiar o JAR que já foi copiado para a VM
-COPY app.jar app.jar
+# Argumento para nome do JAR
+ARG JAR_FILE=app.jar
+
+# Copiar o JAR passado no build
+COPY ${JAR_FILE} app.jar
 
 # Expor a porta padrão do Spring Boot
 EXPOSE 8080
