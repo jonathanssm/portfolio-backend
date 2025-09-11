@@ -5,7 +5,7 @@ FROM eclipse-temurin:21-jdk-alpine
 WORKDIR /app
 
 # Copiar o JAR construído
-COPY portfolio-backend.jar app.jar
+COPY target/portfolio-backend.jar app.jar
 
 # Expor a porta padrão do Spring Boot
 EXPOSE 8080
@@ -17,5 +17,5 @@ ENV JAVA_OPTS="-Xms128m -Xmx512m"
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
 
-# Entry point aplicando JAVA_OPTS
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+# Entry point direto, sem shell intermediário
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -14,14 +14,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Set up JDK 21 (para build com Maven)
+      # 2️⃣ Set up JDK 21
       - name: Set up JDK 21
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      # 2.1️⃣ Dar permissão de execução ao mvnw
       - name: Give execute permission to Maven wrapper
         run: chmod +x ./mvnw
 
@@ -29,44 +28,11 @@ jobs:
       - name: Build JAR
         run: ./mvnw -B clean package -DskipTests
 
-      # 3.1️⃣ Verificar o JAR gerado (opcional, ajuda a depurar)
       - name: List JAR
         run: ls -l target/
 
-      # 4️⃣ Criar diretório na VM antes de copiar
-      - name: Create backend directory on VM
-        uses: appleboy/ssh-action@v0.1.5
-        with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
-          script: mkdir -p /home/ubuntu/backend
-
-      # 5️⃣ Copiar JAR para a VM (pega qualquer JAR gerado)
-      - name: Copy JAR to backend VM
-        uses: appleboy/scp-action@v0.1.5
-        with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
-          source: "target/*.jar"
-          target: "/home/ubuntu/backend/portfolio-backend.jar"
-
-      # 6️⃣ Copiar Dockerfile para a VM
-      - name: Copy Dockerfile to backend VM
-        uses: appleboy/scp-action@v0.1.5
-        with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
-          source: "Dockerfile"
-          target: "/home/ubuntu/backend/Dockerfile"
-
-      # 7️⃣ Build e deploy usando Dockerfile na VM
-      - name: Build and deploy backend on VM
+      # 4️⃣ Deploy e build Docker na VM diretamente a partir do repositório
+      - name: Build and deploy backend on VM using repo Dockerfile
         uses: appleboy/ssh-action@v0.1.5
         with:
           host: ${{ secrets.BACKEND_VM_IP }}
@@ -75,12 +41,21 @@ jobs:
           port: 22
           script: |
             set -e
+            # Cria pasta e copia código (opcional: você pode clonar direto do repo na VM)
+            mkdir -p /home/ubuntu/backend
+            rsync -av --exclude='.git' ./ /home/ubuntu/backend/
             cd /home/ubuntu/backend
+
+            # Build Docker usando Dockerfile do repositório
             docker build -t portfolio-backend .
+
+            # Para e remove container antigo se existir
             if docker ps -a --format '{{.Names}}' | grep -Eq '^portfolio-backend$'; then
               docker stop portfolio-backend || true
               docker rm portfolio-backend || true
             fi
+
+            # Roda o container
             docker run -d --name portfolio-backend \
               -p 8080:8080 \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
