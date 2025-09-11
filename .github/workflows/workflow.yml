@@ -67,6 +67,7 @@ jobs:
           port: ${{ env.VM_PORT }}
           source: "${{ env.JAR_NAME }},Dockerfile"
           target: ${{ env.VM_PATH }}
+          overwrite: true
 
       - name: Build and run Docker container
         uses: appleboy/ssh-action@v1.0.0
