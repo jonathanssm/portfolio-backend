@@ -55,10 +55,18 @@ jobs:
             set -e
             cd /home/ubuntu/backend
 
+            # Verifica se docker buildx está disponível, instala se necessário
+            if ! docker buildx version >/dev/null 2>&1; then
+              echo "Buildx não encontrado. Instalando..."
+              mkdir -p ~/.docker/cli-plugins
+              curl -SL https://github.com/docker/buildx/releases/latest/download/docker-buildx-linux-amd64 -o ~/.docker/cli-plugins/docker-buildx
+              chmod +x ~/.docker/cli-plugins/docker-buildx
+            fi
+
             # Ativa BuildKit
             export DOCKER_BUILDKIT=1
 
-            # Build da imagem Docker usando Dockerfile existente no repo
+            # Build da imagem Docker usando Dockerfile do repo
             docker build -t portfolio-backend .
 
             # Para e remove container antigo se existir
