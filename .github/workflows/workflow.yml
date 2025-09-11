@@ -130,15 +130,17 @@ jobs:
           host: ${{ env.VM_HOST }}
           username: ${{ env.VM_USER }}
           key: ${{ env.VM_SSH_KEY }}
+          # ✅ CRÍTICO: Passa as variáveis do GitHub Actions para o script remoto
+          envs: GITHUB_EVENT_NAME,GITHUB_BASE_REF,GITHUB_REF
           script: |
             set -e
             cd ${{ env.VM_PATH }}
 
             # 🏷️ Determina ambiente pela branch de destino (suporta PRs e pushes diretos)
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-              BRANCH="$GITHUB_BASE_REF"
+              BRANCH="$GITHUB_BASE_REF"  # Branch de destino da PR
             else
-              BRANCH="${GITHUB_REF#refs/heads/}"
+              BRANCH="${GITHUB_REF#refs/heads/}" # Branch atual em push direto
               if [ -z "$BRANCH" ] || [ "$BRANCH" = "$GITHUB_REF" ]; then
                 BRANCH="dev"
               fi
@@ -159,7 +161,7 @@ jobs:
             # 🐳 Verifica Docker
             if ! command -v docker &> /dev/null; then
               echo "📦 Installing Docker..."
-              curl -fsSL https://get.docker.com | sudo sh
+              curl -fsSL https://get.docker.com   | sudo sh
               sudo systemctl enable docker
             fi
 
