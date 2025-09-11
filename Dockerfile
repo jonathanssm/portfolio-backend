@@ -1,25 +1,24 @@
-# Imagem base leve com JDK 21
-FROM eclipse-temurin:21-jdk-alpine
+FROM eclipse-temurin:21-jre-alpine
 
-# Diretório de trabalho
 WORKDIR /app
 
-# Recebe o nome do JAR como build-arg
-ARG JAR_FILE=portfolio-backend-0.0.1-SNAPSHOT.jar
-COPY ${JAR_FILE} app.jar
+# Copia o JAR com o nome fixo que o workflow envia
+COPY portfolio-backend-0.0.1-SNAPSHOT.jar app.jar
 
-# Instala wget para healthcheck
-RUN apk add --no-cache wget
+# Instala curl para healthcheck (mais leve)
+RUN apk add --no-cache curl
 
-# Exposição da porta do Spring Boot
 EXPOSE 8080
 
 # Configuração de memória JVM
-ENV JAVA_OPTS="-Xms128m -Xmx512m"
+ENV JAVA_OPTS="-Xms128m -Xmx512m -Djava.security.egd=file:/dev/./urandom"
 
-# Healthcheck seguro
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
+  CMD curl -f http://localhost:8080/actuator/health || exit 1
 
-# ENTRYPOINT otimizado, garantindo sinais corretos para shutdown
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
+# Usuário não-root para segurança
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring
+
+ENTRYPOINT exec java $JAVA_OPTS -jar app.jar

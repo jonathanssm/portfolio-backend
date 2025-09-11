@@ -1,4 +1,4 @@
-name: Deploy backend to VM (backend + docker)
+name: Deploy Backend to VM
 
 on:
   push:
@@ -7,128 +7,121 @@ on:
       - develop
       - feature/*
 
+env:
+  VM_HOST: ${{ secrets.BACKEND_VM_IP }}
+  VM_USER: ${{ secrets.BACKEND_VM_USER }}
+  VM_SSH_KEY: ${{ secrets.BACKEND_VM_SSH_KEY }}
+  VM_PORT: 22
+  VM_PATH: /home/ubuntu/backend
+  JAR_NAME: portfolio-backend-0.0.1-SNAPSHOT.jar
+
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout do repositório
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # 2️⃣ Set up JDK 21
-      - name: Set up JDK 21
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      # 3️⃣ Dar permissão ao Maven Wrapper
-      - name: Give execute permission to Maven wrapper
-        run: chmod +x ./mvnw
-
-      # 4️⃣ Build do JAR
       - name: Build JAR
-        run: ./mvnw -B clean package -DskipTests
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -B clean package -DskipTests
 
-      # 5️⃣ Listar build artifacts para garantir que existem
-      - name: List build artifacts
-        run: ls -lh target/ Dockerfile
+      - name: Verify build artifacts
+        run: |
+          ls -la target/$JAR_NAME
+          [ -s target/$JAR_NAME ] || exit 1
 
-      # 6️⃣ Garantir que o diretório existe na VM
-      - name: Ensure backend directory exists
-        uses: appleboy/ssh-action@v0.1.5
+      - name: Prepare Docker artifacts
+        run: |
+          # Copia o JAR para o diretório raiz para compatibilidade com Dockerfile
+          cp target/$JAR_NAME .
+          ls -la $JAR_NAME Dockerfile
+
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
-          script: |
-            mkdir -p /home/ubuntu/backend
-            chmod 755 /home/ubuntu/backend
-
-      # 7️⃣ Copiar JAR e Dockerfile juntos para a VM
-      - name: Copy JAR and Dockerfile to backend VM
-        uses: appleboy/scp-action@v0.1.5
-        with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
-          source: "target/portfolio-backend-0.0.1-SNAPSHOT.jar,Dockerfile"
-          target: "/home/ubuntu/backend/"
-
-      # 8️⃣ Verificar arquivos na VM
-      - name: Check backend files in VM
-        uses: appleboy/ssh-action@v0.1.5
-        with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
-          script: |
-            echo "Arquivos no backend:"
-            ls -lh /home/ubuntu/backend/
-
-      # 9️⃣ Build e deploy na VM
-      - name: Build and deploy backend on VM
-        uses: appleboy/ssh-action@v0.1.5
-        with:
-          host: ${{ secrets.BACKEND_VM_IP }}
-          username: ${{ secrets.BACKEND_VM_USER }}
-          key: ${{ secrets.BACKEND_VM_SSH_KEY }}
-          port: 22
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
+          port: ${{ env.VM_PORT }}
           script: |
             set -e
-            cd /home/ubuntu/backend
+            mkdir -p ${{ env.VM_PATH }}
+            cd ${{ env.VM_PATH }}
+            echo "Directory prepared for deployment"
 
-            # Determina ambiente baseado na branch
-            if [ "${GITHUB_REF##*/}" = "main" ]; then
-              ENV_NAME=prod
-            elif [ "${GITHUB_REF##*/}" = "develop" ]; then
-              ENV_NAME=staging
+      - name: Copy files to VM
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
+          port: ${{ env.VM_PORT }}
+          source: "${{ env.JAR_NAME }},Dockerfile"
+          target: ${{ env.VM_PATH }}
+
+      - name: Build and run Docker container
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ env.VM_HOST }}
+          username: ${{ env.VM_USER }}
+          key: ${{ env.VM_SSH_KEY }}
+          port: ${{ env.VM_PORT }}
+          script: |
+            set -e
+            cd ${{ env.VM_PATH }}
+            
+            # Environment setup
+            BRANCH=$(echo "$GITHUB_REF" | awk -F/ '{print $NF}')
+            if [ "$BRANCH" = "main" ]; then
+              ENV="prod"
+            elif [ "$BRANCH" = "develop" ]; then
+              ENV="staging"
             else
-              ENV_NAME=dev
+              ENV="dev"
             fi
-
-            IMAGE_NAME="portfolio-backend-${ENV_NAME}"
-            CONTAINER_NAME="portfolio-backend-${ENV_NAME}"
-
-            # Verifica se o JAR existe e não está vazio
-            if [ ! -f "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
-              echo "JAR não encontrado!"
-              exit 1
-            fi
-            if [ ! -s "portfolio-backend-0.0.1-SNAPSHOT.jar" ]; then
-              echo "JAR está vazio!"
-              exit 1
-            fi
-
-            # Instala Docker apenas se necessário
+            
+            IMAGE_NAME="portfolio-backend-$ENV"
+            CONTAINER_NAME="portfolio-backend-$ENV"
+            echo "Deploying to $ENV environment"
+            
+            # Install Docker if not present (sem adicionar usuário ao grupo docker)
             if ! command -v docker &> /dev/null; then
+              echo "Installing Docker..."
               curl -fsSL https://get.docker.com -o get-docker.sh
               sudo sh get-docker.sh
             fi
-            sudo systemctl enable --now docker
-            export DOCKER_BUILDKIT=1
-
-            # Build da imagem Docker usando Dockerfile do repo
-            sudo docker build --no-cache -t $IMAGE_NAME .
-
-            # Para e remove container antigo se existir
-            sudo docker rm -f $CONTAINER_NAME || true
-
-            # Exporta variáveis de ambiente
-            export SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}"
-            export SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}"
-            export SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}"
-            export SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}"
-
-            # Roda o container
+            
+            # Build Docker image (sem sudo, usando grupo docker)
+            echo "Building Docker image: $IMAGE_NAME"
+            sudo docker build -t $IMAGE_NAME . --no-cache
+            
+            # Stop and remove existing container
+            echo "Stopping existing container: $CONTAINER_NAME"
+            sudo docker rm -f $CONTAINER_NAME 2>/dev/null || true
+            
+            # Run new container com variáveis de ambiente
+            echo "Starting new container: $CONTAINER_NAME"
             sudo docker run -d --name $CONTAINER_NAME \
               -p 8080:8080 \
-              -e SPRING_DATASOURCE_URL="$SPRING_DATASOURCE_URL" \
-              -e SPRING_DATASOURCE_USERNAME="$SPRING_DATASOURCE_USERNAME" \
-              -e SPRING_DATASOURCE_PASSWORD="$SPRING_DATASOURCE_PASSWORD" \
-              -e SPRING_KAFKA_BOOTSTRAP_SERVERS="$SPRING_KAFKA_BOOTSTRAP_SERVERS" \
-              $IMAGE_NAME:latest
+              -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
+              -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
+              -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
+              -e SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}" \
+              -e SPRING_PROFILES_ACTIVE="$ENV" \
+              --restart unless-stopped \
+              $IMAGE_NAME
+            
+            # Cleanup
+            echo "Cleaning up old images..."
+            sudo docker image prune -af --filter "until=24h"
+            
+            echo "Deployment completed successfully!"
