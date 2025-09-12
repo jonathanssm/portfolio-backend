@@ -141,26 +141,31 @@ jobs:
 
             # 🏷️ Determina ambiente com base no tipo de evento
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-              # Se for PR, usa ambiente "preview"
               ENV="preview"
-              echo "🔧 Detected Pull Request → Environment: preview"
+              PORT="8082"
+              echo "🔧 Detected Pull Request → Environment: preview (Port: $PORT)"
             else
-              # Se for push direto, determina ambiente pela branch
               BRANCH="${GITHUB_REF#refs/heads/}"
               case "$BRANCH" in
-                "main") ENV="prod" ;;
-                "develop") ENV="staging" ;;
+                "main")
+                  ENV="prod"
+                  PORT="8080"
+                  ;;
+                "develop")
+                  ENV="staging"
+                  PORT="8081"
+                  ;;
                 *)
                   echo "🚫 Push detected on unsupported branch '$BRANCH'. Skipping deploy."
-                  exit 0 # Sai com sucesso, sem fazer deploy
+                  exit 0
                   ;;
               esac
-              echo "🎯 Detected branch: '$BRANCH' → Environment: $ENV"
+              echo "🎯 Detected branch: '$BRANCH' → Environment: $ENV (Port: $PORT)"
             fi
 
             IMAGE_NAME="portfolio-backend-$ENV"
             CONTAINER_NAME="portfolio-backend-$ENV"
-            echo "🚀 Deploying to $ENV environment"
+            echo "🚀 Deploying to $ENV environment on port $PORT"
 
             # 🐳 Verifica Docker
             if ! command -v docker &> /dev/null; then
@@ -169,7 +174,7 @@ jobs:
               sudo systemctl enable docker
             fi
 
-            # 🐳 Pull da imagem base (opcional, para melhorar confiabilidade)
+            # 🐳 Pull da imagem base
             echo "📥 Pulling base image: eclipse-temurin:21-jre-alpine"
             sudo docker pull eclipse-temurin:21-jre-alpine || echo "⚠️ Pull failed, proceeding to build."
 
@@ -191,29 +196,17 @@ jobs:
               fi
             done
 
-            # 🔄 Rolling update
-            echo "🔄 Performing rolling update"
-
-            # ✅ Remove o container do ambiente ATUAL se existir (para liberar porta)
-            echo "🧹 Stopping and removing current environment container (if exists): $CONTAINER_NAME"
+            # 🔄 Rolling update: Derruba apenas o container do mesmo ambiente
+            echo "🔄 Performing rolling update for environment: $ENV"
+            echo "🧹 Stopping and removing current $ENV container (if exists): $CONTAINER_NAME"
             sudo docker stop $CONTAINER_NAME 2>/dev/null || true
             sudo docker rm $CONTAINER_NAME 2>/dev/null || true
 
-            # ✅ Remove containers de OUTROS ambientes para garantir a porta 8080
-            echo "🧹 Aggressively stopping and removing containers from OTHER environments to free port 8080..."
-            for other_env in dev staging prod preview; do # Inclua "preview" aqui
-              if [ "$other_env" != "$ENV" ]; then
-                echo "  → Targeting: portfolio-backend-$other_env"
-                sudo docker stop "portfolio-backend-$other_env" 2>/dev/null || true
-                sudo docker rm "portfolio-backend-$other_env" 2>/dev/null || true
-              fi
-            done
-
-            # 🚀 Executa container
-            echo "🎯 Starting NEW container: $CONTAINER_NAME"
+            # 🚀 Executa container na porta específica
+            echo "🎯 Starting NEW container: $CONTAINER_NAME on host port $PORT"
             sudo docker run -d \
               --name $CONTAINER_NAME \
-              -p 8080:8080 \
+              -p $PORT:8080 \
               -e SPRING_PROFILES_ACTIVE=$ENV \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
@@ -222,24 +215,20 @@ jobs:
               --restart unless-stopped \
               $IMAGE_NAME
 
-            # 🔍 Verificação Pós-Deploy: Confirma que o container correto está rodando
+            # 🔍 Verificação Pós-Deploy
             echo "✅ Deployment completed! Verifying container status..."
-            sleep 5 # Dá tempo para o container iniciar
+            sleep 5
 
-            # Lista todos os containers ativos
             echo "📋 Currently running containers:"
             sudo docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
 
-            # Verifica se o container esperado está na lista
             if sudo docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
-              echo "💚 SUCCESS: Container '$CONTAINER_NAME' is running and healthy!"
+              echo "💚 SUCCESS: Container '$CONTAINER_NAME' is running and healthy on port $PORT!"
               echo "📋 Application Logs (last 15 lines):"
               sudo docker logs --tail 15 $CONTAINER_NAME
             else
               echo "💔 CRITICAL ERROR: Container '$CONTAINER_NAME' is NOT running!"
-              echo "📋 Checking logs for any container that might have failed..."
               sudo docker ps -a --filter "status=exited" --format "table {{.Names}}\t{{.Status}}\t{{.Command}}" --last 5
-              echo "📋 Logs from the expected container (if it exists):"
               sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "Container '$CONTAINER_NAME' not found."
               exit 1
             fi
