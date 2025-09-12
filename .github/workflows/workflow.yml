@@ -60,7 +60,6 @@ jobs:
             exit 1
           fi
           
-          # ✅ Testa se é um arquivo válido
           if file "target/$JAR_NAME" | grep -q "Java archive"; then
             echo "✅ JAR file is valid"
           else
@@ -69,15 +68,10 @@ jobs:
             exit 1
           fi
 
-      - name: Prepare artifacts with checksum
+      - name: Prepare artifacts
         run: |
-          # ✅ Copia e verifica integridade
           cp target/$JAR_NAME .
           ls -la $JAR_NAME Dockerfile
-          
-          # ✅ Checksum para verificação
-          md5sum $JAR_NAME > jar_checksum.txt
-          echo "JAR checksum: $(md5sum $JAR_NAME)"
 
       - name: Setup VM directory
         uses: appleboy/ssh-action@v1.0.0
@@ -88,7 +82,6 @@ jobs:
           script: |
             mkdir -p ${{ env.VM_PATH }}
             cd ${{ env.VM_PATH }}
-            # ✅ Limpa arquivos e diretórios anteriores completamente
             rm -rf *.jar Dockerfile 2>/dev/null || true
             echo "VM directory cleaned and ready"
 
@@ -115,7 +108,6 @@ jobs:
             echo "📦 Verifying artifacts on VM..."
             ls -la
             
-            # ✅ Verifica se os arquivos são válidos
             if [ ! -f "${{ env.JAR_NAME }}" ]; then
               echo "❌ JAR not found on VM"
               exit 1
@@ -128,7 +120,7 @@ jobs:
             
             echo "✅ All artifacts verified successfully"
 
-      - name: Deploy Docker container
+      - name: Deploy Docker container with memory limits
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ env.VM_HOST }}
@@ -139,74 +131,65 @@ jobs:
             set -e
             cd ${{ env.VM_PATH }}
 
-            # 🏷️ Determina ambiente com base no tipo de evento
+            # 🏷️ Determina ambiente com limites de memória
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
               ENV="preview"
               PORT="8082"
-              echo "🔧 Detected Pull Request → Environment: preview (Port: $PORT)"
+              MEMORY_LIMIT="256m"      # 256MB para preview
+              JAVA_OPTS="-Xms64m -Xmx192m -XX:+UseG1GC"
             else
               BRANCH="${GITHUB_REF#refs/heads/}"
               case "$BRANCH" in
                 "main")
                   ENV="prod"
                   PORT="8080"
+                  MEMORY_LIMIT="512m"  # 512MB para produção
+                  JAVA_OPTS="-Xms128m -Xmx384m -XX:+UseG1GC"
                   ;;
                 "develop")
                   ENV="staging"
                   PORT="8081"
+                  MEMORY_LIMIT="384m"  # 384MB para staging
+                  JAVA_OPTS="-Xms96m -Xmx256m -XX:+UseG1GC"
                   ;;
                 *)
                   echo "🚫 Push detected on unsupported branch '$BRANCH'. Skipping deploy."
                   exit 0
                   ;;
               esac
-              echo "🎯 Detected branch: '$BRANCH' → Environment: $ENV (Port: $PORT)"
             fi
 
             IMAGE_NAME="portfolio-backend-$ENV"
             CONTAINER_NAME="portfolio-backend-$ENV"
-            echo "🚀 Deploying to $ENV environment on port $PORT"
+            
+            echo "🚀 Deploying to $ENV environment"
+            echo "📊 Memory limits: $MEMORY_LIMIT total, JAVA_OPTS: $JAVA_OPTS"
 
             # 🐳 Verifica Docker
             if ! command -v docker &> /dev/null; then
               echo "📦 Installing Docker..."
-              curl -fsSL https://get.docker.com     | sudo sh
+              curl -fsSL https://get.docker.com | sudo sh
               sudo systemctl enable docker
             fi
 
-            # 🐳 Pull da imagem base
-            echo "📥 Pulling base image: eclipse-temurin:21-jre-alpine"
-            sudo docker pull eclipse-temurin:21-jre-alpine || echo "⚠️ Pull failed, proceeding to build."
+            # 🏗️ Build da imagem
+            echo "🔨 Building Docker image..."
+            sudo docker build -t $IMAGE_NAME .
 
-            # 🏗️ Build da imagem com retries
-            echo "🔨 Building Docker image (with retries)..."
-            RETRIES=3
-            for i in $(seq 1 $RETRIES); do
-              if sudo docker build -t $IMAGE_NAME .; then
-                echo "✅ Build succeeded on attempt $i"
-                break
-              else
-                if [ $i -eq $RETRIES ]; then
-                  echo "❌ Build failed after $RETRIES attempts."
-                  exit 1
-                else
-                  echo "⚠️ Build failed on attempt $i. Retrying in 10 seconds..."
-                  sleep 10
-                fi
-              fi
-            done
-
-            # 🔄 Rolling update: Derruba apenas o container do mesmo ambiente
-            echo "🔄 Performing rolling update for environment: $ENV"
-            echo "🧹 Stopping and removing current $ENV container (if exists): $CONTAINER_NAME"
+            # 🔄 Rolling update
+            echo "🔄 Performing rolling update for $ENV"
             sudo docker stop $CONTAINER_NAME 2>/dev/null || true
             sudo docker rm $CONTAINER_NAME 2>/dev/null || true
 
-            # 🚀 Executa container na porta específica
-            echo "🎯 Starting NEW container: $CONTAINER_NAME on host port $PORT"
+            # 🚀 Executa container com limites de memória
+            echo "🎯 Starting container with memory limits..."
             sudo docker run -d \
               --name $CONTAINER_NAME \
               -p $PORT:8080 \
+              --memory=$MEMORY_LIMIT \
+              --memory-swap=$MEMORY_LIMIT \
+              --cpus="0.5" \
+              -e JAVA_OPTS="$JAVA_OPTS" \
               -e SPRING_PROFILES_ACTIVE=$ENV \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
@@ -216,19 +199,28 @@ jobs:
               $IMAGE_NAME
 
             # 🔍 Verificação Pós-Deploy
-            echo "✅ Deployment completed! Verifying container status..."
-            sleep 5
+            echo "✅ Deployment completed! Verifying..."
+            sleep 10
 
-            echo "📋 Currently running containers:"
-            sudo docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
+            echo "📋 Container status:"
+            sudo docker ps --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
-            if sudo docker ps --format '{{.Names}}' | grep -q "^$CONTAINER_NAME$"; then
-              echo "💚 SUCCESS: Container '$CONTAINER_NAME' is running and healthy on port $PORT!"
-              echo "📋 Application Logs (last 15 lines):"
-              sudo docker logs --tail 15 $CONTAINER_NAME
+            echo "📊 Memory usage:"
+            sudo docker stats $CONTAINER_NAME --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" || true
+
+            if sudo docker inspect $CONTAINER_NAME &>/dev/null; then
+              echo "💚 SUCCESS: Container '$CONTAINER_NAME' deployed successfully!"
+              echo "🌐 Access: http://${{ env.VM_HOST }}:$PORT/actuator/health"
+            
+              # 📝 Logs iniciais para debug
+              echo "📋 Application logs (last 10 lines):"
+              sudo docker logs --tail 10 $CONTAINER_NAME
             else
-              echo "💔 CRITICAL ERROR: Container '$CONTAINER_NAME' is NOT running!"
-              sudo docker ps -a --filter "status=exited" --format "table {{.Names}}\t{{.Status}}\t{{.Command}}" --last 5
-              sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "Container '$CONTAINER_NAME' not found."
+              echo "❌ ERROR: Container failed to start"
+              sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "No logs available"
               exit 1
             fi
+
+            # 🧹 Cleanup de imagens antigas
+            echo "🧹 Cleaning up old images..."
+            sudo docker image prune -af --filter "until=48h"
