@@ -41,7 +41,7 @@
                              references="portfolio.technology_types(id)"/>
             </column>
             <column name="icon_url" type="VARCHAR(500)"/>
-            <column name="version" type="SMALLINT"/>
+            <column name="version" type="BIGINT"/>
         </createTable>
     </changeSet>
 
