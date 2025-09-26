@@ -176,8 +176,13 @@ jobs:
             echo "🔐 Setting up SSL certificates..."
             mkdir -p ssl
             
-            # Verificar se é domínio real ou localhost
-            if [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
+            # Verificar se é domínio real ou IP/localhost
+            if [[ "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "${{ env.VM_HOST }}" = "localhost" ] || [ "${{ env.VM_HOST }}" = "127.0.0.1" ]; then
+              echo "🏠 Usando certificados auto-assinados para IP/localhost: ${{ env.VM_HOST }}"
+              sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
+                -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
+                -addext "subjectAltName=DNS:${{ env.VM_HOST }},IP:${{ env.VM_HOST }}"
+            else
               echo "🌐 Configurando certificados Let's Encrypt para ${{ env.VM_HOST }}"
               
               # Aguarda liberação do lock do apt
@@ -225,11 +230,6 @@ jobs:
                 echo "❌ Produção deve ter apenas certificados válidos"
                 exit 1
               fi
-            else
-              echo "🏠 Usando certificados auto-assinados para localhost"
-              sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-                -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=localhost" \
-                -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1,IP:0.0.0.0"
             fi
             
             # Define permissões corretas
