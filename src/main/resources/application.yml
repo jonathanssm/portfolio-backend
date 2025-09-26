@@ -23,15 +23,14 @@ spring:
         query.in_clause_parameter_padding: true # Evita cache explosion em IN clauses
         default_schema: portfolio
 
-          liquibase:
-            enabled: ${SPRING_LIQUIBASE_ENABLED:true}
-            change-log: classpath:db/changelog/db.changelog-master.xml
-            default-schema: portfolio_aud
-            liquibase-schema: public
-            drop-first: false
-            validate-on-migrate: false
-            parameters:
-              logLevel: INFO
+  liquibase:
+    enabled: ${SPRING_LIQUIBASE_ENABLED:true}
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    default-schema: portfolio_aud
+    liquibase-schema: public
+    drop-first: false
+    parameters:
+      logLevel: INFO
 
   datasource:
     url: ${SPRING_DATASOURCE_URL}
