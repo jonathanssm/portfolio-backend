@@ -2,6 +2,10 @@
 
 Backend em Java + Spring Boot + Kafka com nginx para produção HTTPS.
 
+**Arquitetura de Produção:**
+- **VM Aplicação**: Spring Boot + Nginx (SSL/TLS)
+- **VM Infraestrutura**: PostgreSQL + Kafka (externos)
+
 ## 🚀 Tecnologias
 
 - **Java 21** - Linguagem de programação
@@ -26,13 +30,13 @@ Backend em Java + Spring Boot + Kafka com nginx para produção HTTPS.
                                               ▼
                                     ┌─────────────┐
                                     │ PostgreSQL  │
-                                    │   Database  │
+                                    │ (VM Externa)│
                                     └─────────────┘
                                               │
                                               ▼
                                     ┌─────────────┐
                                     │    Kafka    │
-                                    │  Messaging  │
+                                    │ (VM Externa)│
                                     └─────────────┘
 ```
 
@@ -42,8 +46,6 @@ Backend em Java + Spring Boot + Kafka com nginx para produção HTTPS.
 - Java 21+
 - Docker e Docker Compose
 - Maven 3.6+
-
-> **📋 Windows**: Veja [WINDOWS_SETUP.md](WINDOWS_SETUP.md) para instruções específicas do Windows.
 
 ### Executando o projeto
 

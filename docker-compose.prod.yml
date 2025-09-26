@@ -1,36 +1,7 @@
 # Docker Compose para PRODUÇÃO (VM Linux)
-# Este arquivo é usado pelo GitHub Actions workflow
+# Apenas aplicação + nginx (PostgreSQL e Kafka são externos)
 
 services:
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - prod_network
-    restart: unless-stopped
-
-  kafka:
-    image: confluentinc/cp-kafka:latest
-    environment:
-      KAFKA_PROCESS_ROLES: "broker,controller"
-      KAFKA_NODE_ID: 1
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,CONTROLLER://:9093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_LOG_DIRS: /var/lib/kafka/data
-      CLUSTER_ID: "bliValCRQfCWt3d1R9J3Vw"
-    networks:
-      - prod_network
-    restart: unless-stopped
-
   nginx:
     build:
       context: ./nginx
@@ -64,9 +35,6 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
       JAVA_OPTS: ${JAVA_OPTS}
-    depends_on:
-      - postgres
-      - kafka
     networks:
       - prod_network
     restart: unless-stopped
@@ -78,13 +46,8 @@ services:
       start_period: 40s
 
 volumes:
-  postgres_data:
   nginx_logs:
 
 networks:
   prod_network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: "172.21.0.0/16"
-          gateway: "172.21.0.1"
