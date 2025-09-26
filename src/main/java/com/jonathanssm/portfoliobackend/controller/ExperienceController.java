@@ -14,7 +14,7 @@ import java.util.List;
 
 @Validated
 @RestController
-@RequestMapping("/api/experiences")
+@RequestMapping("/experiences")
 @RequiredArgsConstructor
 public class ExperienceController {
 
