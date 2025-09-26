@@ -2,6 +2,10 @@ spring:
   application:
     name: portfolio-backend
 
+server:
+  servlet:
+    context-path: /api
+
   # Remover depois que implementar o auth
   autoconfigure:
     exclude:
