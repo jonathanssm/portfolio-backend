@@ -356,7 +356,7 @@ jobs:
               -v $(pwd)/ssl:/etc/nginx/ssl:ro \
               --link $CONTAINER_NAME:portfolio-backend \
               --restart unless-stopped \
-              --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/actuator/health || exit 1" \
+              --health-cmd="wget --no-verbose --tries=1 --spider http://portfolio-backend:8080/actuator/health || exit 1" \
               --health-interval=30s \
               --health-timeout=5s \
               --health-retries=3 \
