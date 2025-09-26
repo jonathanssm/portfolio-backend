@@ -132,29 +132,33 @@ jobs:
             cd ${{ env.VM_PATH }}
 
             # 🏷️ Determina ambiente com limites de memória
-            # 🧠 Otimização para VM de 1GB RAM
+            # 🧠 Otimização para VM de 1GB RAM - PRODUÇÃO PRIORITÁRIA
             # Total disponível: ~900MB (sistema usa ~100MB)
-            # Nginx: ~50MB, Backend: ~400MB, Sistema: ~100MB, Buffer: ~350MB
+            # Estratégia: Produção sempre ativa + Ambientes temporários
+            # Produção: 400MB, Nginx: 50MB, Sistema: 100MB, Buffer: 350MB
             
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
               ENV="preview"
               PORT="8082"
-              MEMORY_LIMIT="200m"      # 200MB para preview (mais conservador)
-              JAVA_OPTS="-Xms32m -Xmx128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+              MEMORY_LIMIT="150m"      # 150MB para preview (temporário)
+              JAVA_OPTS="-Xms24m -Xmx96m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+              IS_TEMPORARY=true
             else
               BRANCH="${GITHUB_REF#refs/heads/}"
               case "$BRANCH" in
                 "main")
                   ENV="prod"
                   PORT="8080"
-                  MEMORY_LIMIT="350m"  # 350MB para produção (mais conservador)
-                  JAVA_OPTS="-Xms64m -Xmx256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+                  MEMORY_LIMIT="400m"  # 400MB para produção (prioritário)
+                  JAVA_OPTS="-Xms64m -Xmx320m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+                  IS_TEMPORARY=false
                   ;;
                 "develop")
                   ENV="staging"
                   PORT="8081"
-                  MEMORY_LIMIT="300m"  # 300MB para staging (mais conservador)
-                  JAVA_OPTS="-Xms48m -Xmx192m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+                  MEMORY_LIMIT="200m"  # 200MB para staging (temporário)
+                  JAVA_OPTS="-Xms32m -Xmx128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+                  IS_TEMPORARY=true
                   ;;
                 *)
                   echo "🚫 Push detected on unsupported branch '$BRANCH'. Skipping deploy."
@@ -312,12 +316,37 @@ jobs:
             sudo docker build -t $IMAGE_NAME .
             sudo docker build -t nginx-proxy ./nginx
 
-            # 🔄 Rolling update
-            echo "🔄 Performing rolling update for $ENV"
-            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
-            sudo docker rm $CONTAINER_NAME 2>/dev/null || true
-            sudo docker stop nginx-proxy 2>/dev/null || true
-            sudo docker rm nginx-proxy 2>/dev/null || true
+            # 🔄 Deploy inteligente - Produção nunca para desnecessariamente
+            echo "🔄 Performing smart deployment for $ENV"
+            
+            # Verificar se produção está rodando
+            if [ "$ENV" = "prod" ]; then
+              echo "🏭 PRODUCTION DEPLOY - Updating existing container"
+              # Para produção, apenas atualiza o container existente
+              sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+              sudo docker rm $CONTAINER_NAME 2>/dev/null || true
+            else
+              echo "🧪 TEMPORARY ENVIRONMENT - $ENV"
+              # Para staging/preview, para containers temporários se necessário
+              if [ "$IS_TEMPORARY" = "true" ]; then
+                echo "🧹 Stopping other temporary environments to free memory..."
+                sudo docker stop portfolio-backend-staging 2>/dev/null || true
+                sudo docker rm portfolio-backend-staging 2>/dev/null || true
+                sudo docker stop portfolio-backend-preview 2>/dev/null || true
+                sudo docker rm portfolio-backend-preview 2>/dev/null || true
+              fi
+              sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+              sudo docker rm $CONTAINER_NAME 2>/dev/null || true
+            fi
+            
+            # Nginx só é recriado se não existir ou se for produção
+            if ! sudo docker inspect nginx-proxy &>/dev/null || [ "$ENV" = "prod" ]; then
+              echo "🌐 Updating nginx configuration..."
+              sudo docker stop nginx-proxy 2>/dev/null || true
+              sudo docker rm nginx-proxy 2>/dev/null || true
+            else
+              echo "🌐 Nginx already running, keeping it active"
+            fi
 
             # 🚀 Executa containers com limites de memória
             echo "🎯 Starting containers with memory limits..."
@@ -343,24 +372,30 @@ jobs:
               --health-retries=3 \
               $IMAGE_NAME
 
-            # Nginx container com otimizações para 1GB RAM
-            sudo docker run -d \
-              --name nginx-proxy \
-              --memory=64m \
-              --memory-swap=64m \
-              --cpus="0.2" \
-              --oom-kill-disable=false \
-              --memory-reservation=48m \
-              -p 80:80 \
-              -p 443:443 \
-              -v $(pwd)/ssl:/etc/nginx/ssl:ro \
-              --link $CONTAINER_NAME:portfolio-backend \
-              --restart unless-stopped \
-              --health-cmd="wget --no-verbose --tries=1 --spider http://portfolio-backend:8080/actuator/health || exit 1" \
-              --health-interval=30s \
-              --health-timeout=5s \
-              --health-retries=3 \
-              nginx-proxy
+            # Nginx container otimizado para 1GB RAM
+            if ! sudo docker inspect nginx-proxy &>/dev/null; then
+              echo "🌐 Starting nginx container..."
+              sudo docker run -d \
+                --name nginx-proxy \
+                --memory=50m \
+                --memory-swap=50m \
+                --cpus="0.1" \
+                --oom-kill-disable=false \
+                --memory-reservation=40m \
+                -p 80:80 \
+                -p 443:443 \
+                -v $(pwd)/ssl:/etc/nginx/ssl:ro \
+                --restart unless-stopped \
+                --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || exit 1" \
+                --health-interval=30s \
+                --health-timeout=5s \
+                --health-retries=3 \
+                nginx-proxy
+            else
+              echo "🌐 Nginx already running, linking to $CONTAINER_NAME..."
+              # Linkar o novo container ao nginx existente
+              sudo docker network connect bridge $CONTAINER_NAME 2>/dev/null || true
+            fi
 
             # 🔍 Verificação Pós-Deploy
             echo "✅ Deployment completed! Verifying..."
@@ -379,15 +414,26 @@ jobs:
             free -h
             echo "💾 Memory usage: $(free -m | awk 'NR==2{printf "%.1f%%", $3*100/$2 }')"
             
-            # ⚠️ Alertas de memória
+            # ⚠️ Alertas de memória inteligentes
             USED_MB=$(free -m | awk 'NR==2{print $3}')
             TOTAL_MB=$(free -m | awk 'NR==2{print $2}')
             USAGE_PERCENT=$((USED_MB * 100 / TOTAL_MB))
             
+            # Verificar containers ativos
+            ACTIVE_CONTAINERS=$(sudo docker ps --format "{{.Names}}" | grep -E "(portfolio-backend|nginx)" | wc -l)
+            echo "📊 Active containers: $ACTIVE_CONTAINERS"
+            
             if [ $USAGE_PERCENT -gt 90 ]; then
-              echo "🚨 CRITICAL: Memory usage is ${USAGE_PERCENT}%! Consider upgrading VM."
+              echo "🚨 CRITICAL: Memory usage is ${USAGE_PERCENT}%! Stopping temporary environments..."
+              # Parar ambientes temporários em caso de memória crítica
+              sudo docker stop portfolio-backend-staging 2>/dev/null || true
+              sudo docker stop portfolio-backend-preview 2>/dev/null || true
+              echo "🧹 Temporary environments stopped to free memory"
             elif [ $USAGE_PERCENT -gt 80 ]; then
               echo "⚠️ WARNING: Memory usage is ${USAGE_PERCENT}%. Monitor closely."
+              if [ "$IS_TEMPORARY" = "true" ]; then
+                echo "🧪 Temporary environment deployed - will be stopped if memory gets critical"
+              fi
             else
               echo "✅ Memory usage is healthy: ${USAGE_PERCENT}%"
             fi
