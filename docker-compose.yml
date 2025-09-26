@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Docker Compose para DESENVOLVIMENTO LOCAL
 # Para produção, use o GitHub Actions workflow
 
@@ -53,7 +51,3 @@ volumes:
 networks:
   dev_network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: "172.21.0.0/16"
-          gateway: "172.21.0.1"

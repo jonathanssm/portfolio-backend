@@ -189,7 +189,7 @@ jobs:
                 --standalone \
                 --non-interactive \
                 --agree-tos \
-                --email "${{ secrets.SSL_EMAIL || 'admin@' + env.VM_HOST }}" \
+                --email "${{ secrets.SSL_EMAIL || format('admin@{0}', env.VM_HOST) }}" \
                 --domains "${{ env.VM_HOST }}" \
                 --expand
               
