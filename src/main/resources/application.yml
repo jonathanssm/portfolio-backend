@@ -48,8 +48,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: com.jonathanssm.portfoliobackend.model.event.*
-        spring.json.type.mapping: event:com.jonathanssm.portfoliobackend.model.event.Event
+        spring.json.trusted.packages: com.jonathanssm.portfoliobackend.model.*
 
 logging:
   level:
