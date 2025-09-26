@@ -282,10 +282,31 @@ jobs:
               echo "✅ Nginx directory found"
               ls -la ./nginx/
             else
-              echo "❌ Nginx directory not found!"
-              echo "📁 Current directory contents:"
-              ls -la
-              exit 1
+              echo "❌ Nginx directory not found! Creating from repository..."
+              
+              # Criar diretório nginx
+              mkdir -p nginx
+              
+              # Baixar arquivos do nginx do repositório
+              echo "📥 Downloading nginx files from repository..."
+              curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3.raw" \
+                -o nginx/Dockerfile \
+                "https://api.github.com/repos/${{ github.repository }}/contents/nginx/Dockerfile?ref=${{ github.ref_name }}"
+              
+              curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3.raw" \
+                -o nginx/nginx.conf \
+                "https://api.github.com/repos/${{ github.repository }}/contents/nginx/nginx.conf?ref=${{ github.ref_name }}"
+              
+              # Verificar se arquivos foram baixados
+              if [ -f "nginx/Dockerfile" ] && [ -f "nginx/nginx.conf" ]; then
+                echo "✅ Nginx files downloaded successfully"
+                ls -la nginx/
+              else
+                echo "❌ Failed to download nginx files"
+                exit 1
+              fi
             fi
             
             sudo docker build -t $IMAGE_NAME .
