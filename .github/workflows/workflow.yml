@@ -132,33 +132,30 @@ jobs:
             cd ${{ env.VM_PATH }}
 
             # 🏷️ Determina ambiente com limites de memória
-            # 🧠 Otimização para VM de 1GB RAM - PRODUÇÃO PRIORITÁRIA
+            # 🧠 Otimização para VM de 1GB RAM - STAGING E PRODUÇÃO SEMPRE ATIVOS
             # Total disponível: ~900MB (sistema usa ~100MB)
-            # Estratégia: Produção sempre ativa + Ambientes temporários
-            # Produção: 400MB, Nginx: 50MB, Sistema: 100MB, Buffer: 350MB
+            # Estratégia: Staging + Produção sempre ativos (sem preview)
+            # Produção: 450MB, Staging: 350MB, Nginx: 50MB, Sistema: 100MB, Buffer: 50MB
             
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-              ENV="preview"
-              PORT="8082"
-              MEMORY_LIMIT="150m"      # 150MB para preview (temporário)
-              JAVA_OPTS="-Xms24m -Xmx96m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
-              IS_TEMPORARY=true
+              echo "🚫 Pull requests não são suportados - apenas staging e produção"
+              exit 0
             else
               BRANCH="${GITHUB_REF#refs/heads/}"
               case "$BRANCH" in
                 "main")
                   ENV="prod"
                   PORT="8080"
-                  MEMORY_LIMIT="400m"  # 400MB para produção (prioritário)
-                  JAVA_OPTS="-Xms64m -Xmx320m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+                  MEMORY_LIMIT="450m"  # 450MB para produção (sempre ativa)
+                  JAVA_OPTS="-Xms64m -Xmx360m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops"
                   IS_TEMPORARY=false
                   ;;
                 "develop")
                   ENV="staging"
                   PORT="8081"
-                  MEMORY_LIMIT="200m"  # 200MB para staging (temporário)
-                  JAVA_OPTS="-Xms32m -Xmx128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
-                  IS_TEMPORARY=true
+                  MEMORY_LIMIT="350m"  # 350MB para staging (sempre ativo)
+                  JAVA_OPTS="-Xms48m -Xmx280m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops"
+                  IS_TEMPORARY=false
                   ;;
                 *)
                   echo "🚫 Push detected on unsupported branch '$BRANCH'. Skipping deploy."
@@ -319,22 +316,15 @@ jobs:
             # 🔄 Deploy inteligente - Produção nunca para desnecessariamente
             echo "🔄 Performing smart deployment for $ENV"
             
-            # Verificar se produção está rodando
+            # Deploy de ambientes permanentes (staging e produção)
             if [ "$ENV" = "prod" ]; then
               echo "🏭 PRODUCTION DEPLOY - Updating existing container"
               # Para produção, apenas atualiza o container existente
               sudo docker stop $CONTAINER_NAME 2>/dev/null || true
               sudo docker rm $CONTAINER_NAME 2>/dev/null || true
-            else
-              echo "🧪 TEMPORARY ENVIRONMENT - $ENV"
-              # Para staging/preview, para containers temporários se necessário
-              if [ "$IS_TEMPORARY" = "true" ]; then
-                echo "🧹 Stopping other temporary environments to free memory..."
-                sudo docker stop portfolio-backend-staging 2>/dev/null || true
-                sudo docker rm portfolio-backend-staging 2>/dev/null || true
-                sudo docker stop portfolio-backend-preview 2>/dev/null || true
-                sudo docker rm portfolio-backend-preview 2>/dev/null || true
-              fi
+            elif [ "$ENV" = "staging" ]; then
+              echo "🧪 STAGING DEPLOY - Updating existing container"
+              # Para staging, apenas atualiza o container existente
               sudo docker stop $CONTAINER_NAME 2>/dev/null || true
               sudo docker rm $CONTAINER_NAME 2>/dev/null || true
             fi
@@ -358,18 +348,24 @@ jobs:
               --memory-swap=$MEMORY_LIMIT \
               --cpus="0.5" \
               --oom-kill-disable=false \
-              --memory-reservation=$(echo $MEMORY_LIMIT | sed 's/m//' | awk '{print int($1*0.8)"m"}') \
+              --memory-reservation=$(echo $MEMORY_LIMIT | sed 's/m//' | awk '{print int($1*0.7)"m"}') \
+              --shm-size=64m \
               -e JAVA_OPTS="$JAVA_OPTS" \
               -e SPRING_PROFILES_ACTIVE=production \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
               -e SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}" \
+              -e SPRING_JPA_HIBERNATE_DDL_AUTO=validate \
+              -e SPRING_JPA_HIBERNATE_SHOW_SQL=false \
+              -e LOGGING_LEVEL_ORG_HIBERNATE=ERROR \
+              -e LOGGING_LEVEL_ORG_SPRINGFRAMEWORK=WARN \
               --restart unless-stopped \
               --health-cmd="curl -f http://localhost:8080/actuator/health || exit 1" \
-              --health-interval=30s \
-              --health-timeout=10s \
-              --health-retries=3 \
+              --health-interval=60s \
+              --health-timeout=30s \
+              --health-retries=5 \
+              --health-start-period=120s \
               $IMAGE_NAME
 
             # Nginx container otimizado para 1GB RAM
@@ -399,7 +395,11 @@ jobs:
 
             # 🔍 Verificação Pós-Deploy
             echo "✅ Deployment completed! Verifying..."
-            sleep 10
+            sleep 30
+            
+            # Debug: Verificar logs do container
+            echo "🔍 Checking container logs for issues..."
+            sudo docker logs --tail 20 $CONTAINER_NAME || true
 
             echo "📋 Container status:"
             sudo docker ps --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
@@ -424,16 +424,11 @@ jobs:
             echo "📊 Active containers: $ACTIVE_CONTAINERS"
             
             if [ $USAGE_PERCENT -gt 90 ]; then
-              echo "🚨 CRITICAL: Memory usage is ${USAGE_PERCENT}%! Stopping temporary environments..."
-              # Parar ambientes temporários em caso de memória crítica
-              sudo docker stop portfolio-backend-staging 2>/dev/null || true
-              sudo docker stop portfolio-backend-preview 2>/dev/null || true
-              echo "🧹 Temporary environments stopped to free memory"
+              echo "🚨 CRITICAL: Memory usage is ${USAGE_PERCENT}%! Consider upgrading VM."
+              echo "⚠️ Both staging and production are permanent - cannot stop them"
             elif [ $USAGE_PERCENT -gt 80 ]; then
               echo "⚠️ WARNING: Memory usage is ${USAGE_PERCENT}%. Monitor closely."
-              if [ "$IS_TEMPORARY" = "true" ]; then
-                echo "🧪 Temporary environment deployed - will be stopped if memory gets critical"
-              fi
+              echo "📊 Both staging and production are running permanently"
             else
               echo "✅ Memory usage is healthy: ${USAGE_PERCENT}%"
             fi
