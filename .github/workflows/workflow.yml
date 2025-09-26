@@ -274,6 +274,20 @@ jobs:
 
             # 🏗️ Build das imagens
             echo "🔨 Building Docker images..."
+            
+            # Verificar se diretório nginx existe
+            echo "🔍 Checking nginx directory..."
+            ls -la
+            if [ -d "./nginx" ]; then
+              echo "✅ Nginx directory found"
+              ls -la ./nginx/
+            else
+              echo "❌ Nginx directory not found!"
+              echo "📁 Current directory contents:"
+              ls -la
+              exit 1
+            fi
+            
             sudo docker build -t $IMAGE_NAME .
             sudo docker build -t nginx-proxy ./nginx
 
