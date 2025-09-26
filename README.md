@@ -1,10 +1,20 @@
 # Portfolio Backend
 
-Backend em Java + Spring Boot + Kafka com nginx para produção HTTPS.
+Backend em Java + Spring Boot + Kafka para gerenciamento de portfolio profissional com nginx para produção HTTPS.
 
 **Arquitetura de Produção:**
 - **VM Aplicação**: Spring Boot + Nginx (SSL/TLS)
 - **VM Infraestrutura**: PostgreSQL + Kafka (externos)
+
+## 🎯 Funcionalidades
+
+- **Autenticação JWT** - Sistema de login seguro com tokens
+- **Gestão de Experiências** - CRUD completo de experiências profissionais
+- **Sistema de Usuários** - Gerenciamento de usuários e perfis
+- **Mensageria Assíncrona** - Eventos via Apache Kafka
+- **API REST** - Endpoints documentados com OpenAPI/Swagger
+- **Segurança** - Spring Security com autorização baseada em roles
+- **Auditoria** - Controle de versão do banco com Liquibase
 
 ## 🚀 Tecnologias
 
@@ -106,7 +116,9 @@ O deploy em produção é **automatizado** via GitHub Actions quando você faz p
 
 1. **Push para `main`** → Deploy em produção (porta 8080)
 2. **Push para `develop`** → Deploy em staging (porta 8081)
-3. **Pull Request** → Deploy de preview (porta 8082)
+3. **Pull Request** → Não suportado (apenas staging e produção)
+
+**⚠️ IMPORTANTE**: Staging e produção rodam **simultaneamente** na mesma VM com limites de memória otimizados para 1GB RAM.
 
 ### Configuração do GitHub Actions
 
@@ -137,9 +149,16 @@ Configure no GitHub Repository Settings → Secrets and Variables → Actions:
 
 Após o deploy, verifique se os serviços estão funcionando:
 
-- **Produção**: `https://seu-dominio.com/actuator/health`
-- **Staging**: `https://seu-dominio.com:8081/actuator/health`
-- **Preview**: `https://seu-dominio.com:8082/actuator/health`
+- **Produção**: `https://api.jonathanssm.com/actuator/health`
+- **Staging**: `https://staging.jonathanssm.com/actuator/health`
+- **API Produção**: `https://api.jonathanssm.com/api/`
+- **API Staging**: `https://staging.jonathanssm.com/api/`
+
+**🔧 Correções Implementadas**:
+- ✅ Nginx configurado com upstreams corretos para staging e produção
+- ✅ Containers com nomes específicos por ambiente (`portfolio-backend-prod`, `portfolio-backend-staging`)
+- ✅ Deploy otimizado para VM de 1GB RAM
+- ✅ Workflow GitHub Actions otimizado para VM de 1GB RAM
 
 ### 🔐 Certificados SSL
 
@@ -182,10 +201,16 @@ portfolio-backend/
 │   ├── application-production.yml   # Configuração de produção
 │   └── db/changelog/               # Scripts Liquibase
 ├── nginx/              # Configuração do nginx (produção)
+│   ├── Dockerfile      # Imagem nginx customizada
+│   └── nginx.conf      # Configuração proxy reverso
 ├── ssl/               # Certificados SSL (produção)
-├── scripts/           # Scripts de SSL e deploy
+│   └── generate-ssl.sh # Script geração certificados
 ├── docker-compose.yml # Desenvolvimento local (infraestrutura)
-└── docker-compose.prod.yml # Produção (VM Linux)
+├── docker-compose.prod.yml # Produção (VM Linux)
+├── Dockerfile         # Imagem Spring Boot
+├── pom.xml           # Dependências Maven
+├── mvnw / mvnw.cmd   # Maven Wrapper
+└── logs/             # Logs da aplicação
 ```
 
 ## 🔧 Configurações
@@ -206,11 +231,19 @@ portfolio-backend/
 |---------|-------|-----------|
 | Nginx HTTP | 80 | Redirecionamento para HTTPS |
 | Nginx HTTPS | 443 | API principal |
-| Backend | 8080 | Aplicação Spring (interno) |
+| Backend Produção | 8080 | Aplicação Spring (interno) |
+| Backend Staging | 8081 | Aplicação Spring (interno) |
 | PostgreSQL | 5432 | Banco de dados |
 | Kafka | 9092, 29092 | Mensageria |
 | Kafdrop | 19000 | Interface Kafka |
 | Swagger UI | 8080/api/swagger-ui.html | Documentação da API |
+
+### 🏷️ Ambientes
+
+| Ambiente | Branch | Porta | Domínio | Descrição |
+|----------|--------|-------|---------|-----------|
+| **Produção** | `main` | 8080 | `api.jonathanssm.com` | Ambiente estável |
+| **Staging** | `develop` | 8081 | `staging.jonathanssm.com` | Ambiente de testes |
 
 ## 📚 Documentação da API
 
@@ -225,6 +258,26 @@ A API possui documentação automática gerada pelo **SpringDoc OpenAPI 3**:
 - **Local**: http://localhost:8080/api/swagger-ui.html
 - **Desenvolvimento**: https://staging.jonathanssm.com/api/swagger-ui.html
 - **Produção**: https://api.jonathanssm.com/api/swagger-ui.html
+
+### 📋 Endpoints Principais
+
+#### 🔐 Autenticação (`/auth`)
+- `POST /auth/login` - Login com username/password
+- `POST /auth/validate` - Validar token JWT
+
+#### 💼 Experiências (`/experiences`)
+- `GET /experiences` - Listar todas as experiências
+- `GET /experiences/{id}` - Buscar experiência por ID
+- `POST /experiences` - Criar nova experiência (ADMIN)
+- `PUT /experiences/{id}` - Atualizar experiência (ADMIN)
+- `DELETE /experiences/{id}` - Deletar experiência (ADMIN)
+
+#### 👤 Administração (`/admin`)
+- `POST /admin/create-admin` - Criar usuário admin (desenvolvimento)
+
+#### 🔍 Monitoramento
+- `GET /actuator/health` - Status da aplicação
+- `GET /actuator/metrics` - Métricas do sistema
 
 ## 🔒 Segurança
 
@@ -247,8 +300,8 @@ A API possui documentação automática gerada pelo **SpringDoc OpenAPI 3**:
 
 1. **Certificados SSL inválidos**
    ```bash
-   # Regenerar certificados
-   ./ssl/generate-ssl.sh
+   # Os certificados são regenerados automaticamente a cada deploy
+   # Para forçar regeneração, faça um novo push para main/develop
    ```
 
 2. **Backend não inicia**
