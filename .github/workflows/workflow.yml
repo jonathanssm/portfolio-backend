@@ -180,11 +180,27 @@ jobs:
             if [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
               echo "🌐 Configurando certificados Let's Encrypt para ${{ env.VM_HOST }}"
               
+              # Aguarda liberação do lock do apt
+              echo "⏳ Aguardando liberação do lock do apt..."
+              while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+                echo "   Lock ativo, aguardando 5s..."
+                sleep 5
+              done
+              
               # Instalar certbot
               sudo apt-get update
               sudo apt-get install -y certbot
               
-              # Gerar certificado Let's Encrypt
+              # Verificar se certbot foi instalado
+              if ! command -v certbot &> /dev/null; then
+                echo "❌ Falha ao instalar certbot, usando certificados auto-assinados"
+                sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
+                  -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
+                  -addext "subjectAltName=DNS:${{ env.VM_HOST }},DNS:*.${{ env.VM_HOST }}"
+              else
+                echo "✅ Certbot instalado com sucesso"
+                
+                # Gerar certificado Let's Encrypt
               sudo certbot certonly \
                 --standalone \
                 --non-interactive \
@@ -209,6 +225,7 @@ jobs:
                 sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
                   -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
                   -addext "subjectAltName=DNS:${{ env.VM_HOST }},DNS:*.${{ env.VM_HOST }}"
+              fi
               fi
             else
               echo "🏠 Usando certificados auto-assinados para localhost"
