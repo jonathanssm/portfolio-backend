@@ -205,13 +205,13 @@ jobs:
               
               echo "✅ Certbot instalado com sucesso"
               
-              # Gerar certificado Let's Encrypt
+              # Gerar certificado Let's Encrypt para todos os subdomínios
               sudo certbot certonly \
                 --standalone \
                 --non-interactive \
                 --agree-tos \
                 --email "${{ secrets.SSL_EMAIL || format('admin@{0}', env.VM_HOST) }}" \
-                --domains "${{ env.VM_HOST }}" \
+                --domains "${{ env.VM_HOST }},staging.${{ env.VM_HOST }},preview.${{ env.VM_HOST }},api.${{ env.VM_HOST }}" \
                 --expand
               
               # Verificar se certificados foram gerados
