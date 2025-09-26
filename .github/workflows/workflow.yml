@@ -172,20 +172,76 @@ jobs:
               sudo systemctl enable docker
             fi
 
-            # 🏗️ Build da imagem
-            echo "🔨 Building Docker image..."
+            # 🔐 Configura certificados SSL
+            echo "🔐 Setting up SSL certificates..."
+            mkdir -p ssl
+            
+            # Verificar se é domínio real ou localhost
+            if [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
+              echo "🌐 Configurando certificados Let's Encrypt para ${{ env.VM_HOST }}"
+              
+              # Instalar certbot
+              sudo apt-get update
+              sudo apt-get install -y certbot
+              
+              # Gerar certificado Let's Encrypt
+              sudo certbot certonly \
+                --standalone \
+                --non-interactive \
+                --agree-tos \
+                --email "${{ secrets.SSL_EMAIL || 'admin@' + env.VM_HOST }}" \
+                --domains "${{ env.VM_HOST }}" \
+                --expand
+              
+              # Copiar certificados
+              if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
+                sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
+                sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
+                echo "✅ Certificados Let's Encrypt configurados"
+                
+                # Configurar renovação automática
+                echo "⏰ Configurando renovação automática..."
+                chmod +x scripts/ssl-renew.sh
+                chmod +x scripts/setup-ssl-cron.sh
+                ./scripts/setup-ssl-cron.sh "${{ env.VM_HOST }}"
+              else
+                echo "⚠️  Falha ao gerar certificados Let's Encrypt, usando auto-assinados"
+                sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
+                  -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
+                  -addext "subjectAltName=DNS:${{ env.VM_HOST }},DNS:*.${{ env.VM_HOST }}"
+              fi
+            else
+              echo "🏠 Usando certificados auto-assinados para localhost"
+              sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
+                -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=localhost" \
+                -addext "subjectAltName=DNS:localhost,DNS:*.localhost,IP:127.0.0.1,IP:0.0.0.0"
+            fi
+            
+            # Define permissões corretas
+            sudo chmod 600 ssl/key.pem
+            sudo chmod 644 ssl/cert.pem
+            sudo chown -R $USER:$USER ssl/
+            
+            echo "✅ SSL certificates configured successfully"
+
+            # 🏗️ Build das imagens
+            echo "🔨 Building Docker images..."
             sudo docker build -t $IMAGE_NAME .
+            sudo docker build -t nginx-proxy ./nginx
 
             # 🔄 Rolling update
             echo "🔄 Performing rolling update for $ENV"
             sudo docker stop $CONTAINER_NAME 2>/dev/null || true
             sudo docker rm $CONTAINER_NAME 2>/dev/null || true
+            sudo docker stop nginx-proxy 2>/dev/null || true
+            sudo docker rm nginx-proxy 2>/dev/null || true
 
-            # 🚀 Executa container com limites de memória
-            echo "🎯 Starting container with memory limits..."
+            # 🚀 Executa containers com limites de memória
+            echo "🎯 Starting containers with memory limits..."
+            
+            # Backend container
             sudo docker run -d \
               --name $CONTAINER_NAME \
-              -p $PORT:8080 \
               --memory=$MEMORY_LIMIT \
               --memory-swap=$MEMORY_LIMIT \
               --cpus="0.5" \
@@ -198,26 +254,44 @@ jobs:
               --restart unless-stopped \
               $IMAGE_NAME
 
+            # Nginx container
+            sudo docker run -d \
+              --name nginx-proxy \
+              -p 80:80 \
+              -p 443:443 \
+              -v $(pwd)/ssl:/etc/nginx/ssl:ro \
+              --link $CONTAINER_NAME:portfolio-backend \
+              --restart unless-stopped \
+              nginx-proxy
+
             # 🔍 Verificação Pós-Deploy
             echo "✅ Deployment completed! Verifying..."
             sleep 10
 
             echo "📋 Container status:"
             sudo docker ps --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            sudo docker ps --filter "name=nginx-proxy" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
             echo "📊 Memory usage:"
             sudo docker stats $CONTAINER_NAME --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" || true
+            sudo docker stats nginx-proxy --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" || true
 
-            if sudo docker inspect $CONTAINER_NAME &>/dev/null; then
-              echo "💚 SUCCESS: Container '$CONTAINER_NAME' deployed successfully!"
-              echo "🌐 Access: http://${{ env.VM_HOST }}:$PORT/actuator/health"
+            if sudo docker inspect $CONTAINER_NAME &>/dev/null && sudo docker inspect nginx-proxy &>/dev/null; then
+              echo "💚 SUCCESS: Containers deployed successfully!"
+              echo "🌐 Access:"
+              echo "   - HTTP:  http://${{ env.VM_HOST }}/actuator/health"
+              echo "   - HTTPS: https://${{ env.VM_HOST }}/actuator/health"
+              echo "   - API:   https://${{ env.VM_HOST }}/api/"
             
               # 📝 Logs iniciais para debug
               echo "📋 Application logs (last 10 lines):"
               sudo docker logs --tail 10 $CONTAINER_NAME
+              echo "📋 Nginx logs (last 5 lines):"
+              sudo docker logs --tail 5 nginx-proxy
             else
-              echo "❌ ERROR: Container failed to start"
-              sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "No logs available"
+              echo "❌ ERROR: One or more containers failed to start"
+              sudo docker logs $CONTAINER_NAME 2>/dev/null || echo "No backend logs available"
+              sudo docker logs nginx-proxy 2>/dev/null || echo "No nginx logs available"
               exit 1
             fi
 

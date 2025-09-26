@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Docker Compose para DESENVOLVIMENTO LOCAL
+# Para produção, use o GitHub Actions workflow
+
 services:
   postgres:
     image: postgres:15
@@ -12,7 +15,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - kafka_network
+      - dev_network
 
   kafka:
     image: confluentinc/cp-kafka:latest
@@ -31,7 +34,7 @@ services:
       - "9092:9092"   # para containers internos (Kafdrop)
       - "29092:29092" # para aplicação Java fora do Docker
     networks:
-      - kafka_network
+      - dev_network
 
   kafdrop:
     image: obsidiandynamics/kafdrop:latest
@@ -42,13 +45,13 @@ services:
     environment:
       KAFKA_BROKERCONNECT: kafka:9092
     networks:
-      - kafka_network
+      - dev_network
 
 volumes:
   postgres_data:
 
 networks:
-  kafka_network:
+  dev_network:
     driver: bridge
     ipam:
       config:

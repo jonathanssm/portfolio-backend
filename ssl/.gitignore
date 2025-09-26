@@ -1,0 +1,9 @@
+# Ignorar certificados SSL (exceto o script de geração)
+*.pem
+*.crt
+*.key
+*.p12
+*.pfx
+
+# Manter apenas o script de geração
+!generate-ssl.sh
