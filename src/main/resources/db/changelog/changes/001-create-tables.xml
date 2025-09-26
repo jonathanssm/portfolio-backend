@@ -5,78 +5,209 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
                         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
+    <!-- Criar tabela roles -->
     <changeSet id="1" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="roles" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="roles" schemaName="portfolio">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="description" type="TEXT"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Criar tabela profiles -->
+    <changeSet id="2" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="profiles" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="profiles" schemaName="portfolio">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Criar tabela profile_roles -->
+    <changeSet id="3" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="profile_roles" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="role_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="profile_roles" columnNames="profile_id,role_id" schemaName="portfolio"/>
+        <addForeignKeyConstraint baseTableName="profile_roles" baseColumnNames="profile_id" 
+                                 constraintName="fk_profile_roles_profile" referencedTableName="profiles" 
+                                 referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="profile_roles" baseColumnNames="role_id" 
+                                 constraintName="fk_profile_roles_role" referencedTableName="roles" 
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+    <!-- Criar tabela users -->
+    <changeSet id="4" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="users" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="users" schemaName="portfolio">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="username" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="email" type="VARCHAR(100)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="password" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="first_name" type="VARCHAR(100)"/>
+            <column name="last_name" type="VARCHAR(100)"/>
+            <column name="is_enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_account_non_expired" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_account_non_locked" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_credentials_non_expired" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <!-- Criar tabela user_profiles -->
+    <changeSet id="5" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="user_profiles" schemaName="portfolio"/>
+            </not>
+        </preConditions>
+        <createTable tableName="user_profiles" schemaName="portfolio">
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="profile_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addPrimaryKey tableName="user_profiles" columnNames="user_id,profile_id" schemaName="portfolio"/>
+        <addForeignKeyConstraint baseTableName="user_profiles" baseColumnNames="user_id" 
+                                 constraintName="fk_user_profiles_user" referencedTableName="users" 
+                                 referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="user_profiles" baseColumnNames="profile_id" 
+                                 constraintName="fk_user_profiles_profile" referencedTableName="profiles" 
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+    <!-- Criar tabela technology_types -->
+    <changeSet id="6" author="jonathanssm">
         <preConditions onFail="MARK_RAN">
             <not>
                 <tableExists tableName="technology_types" schemaName="portfolio"/>
             </not>
         </preConditions>
         <createTable tableName="technology_types" schemaName="portfolio">
-            <column name="id" type="BIGINT" autoIncrement="true">
+            <column name="id" type="BIGSERIAL">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="name" type="VARCHAR(255)">
+            <column name="name" type="VARCHAR(100)">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="description" type="TEXT"/>
         </createTable>
     </changeSet>
 
-    <changeSet id="2" author="jonathanssm">
+    <!-- Criar tabela technologies -->
+    <changeSet id="7" author="jonathanssm">
         <preConditions onFail="MARK_RAN">
             <not>
                 <tableExists tableName="technologies" schemaName="portfolio"/>
             </not>
         </preConditions>
         <createTable tableName="technologies" schemaName="portfolio">
-            <column name="id" type="BIGINT" autoIncrement="true">
+            <column name="id" type="BIGSERIAL">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="name" type="VARCHAR(255)">
+            <column name="name" type="VARCHAR(100)">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="description" type="TEXT"/>
             <column name="type_id" type="BIGINT">
-                <constraints nullable="false" foreignKeyName="fk_technology_type"
-                             references="portfolio.technology_types(id)"/>
+                <constraints nullable="false"/>
             </column>
             <column name="icon_url" type="VARCHAR(500)"/>
-            <column name="version" type="BIGINT"/>
+            <column name="version" type="BIGINT" defaultValueNumeric="0"/>
         </createTable>
+        <addForeignKeyConstraint baseTableName="technologies" baseColumnNames="type_id" 
+                                 constraintName="fk_technologies_type" referencedTableName="technology_types" 
+                                 referencedColumnNames="id"/>
     </changeSet>
 
-    <changeSet id="3" author="jonathanssm">
+    <!-- Criar tabela experiences -->
+    <changeSet id="8" author="jonathanssm">
         <preConditions onFail="MARK_RAN">
             <not>
                 <tableExists tableName="experiences" schemaName="portfolio"/>
             </not>
         </preConditions>
         <createTable tableName="experiences" schemaName="portfolio">
-            <column name="id" type="BIGINT" autoIncrement="true">
+            <column name="id" type="BIGSERIAL">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="title" type="VARCHAR(255)">
+            <column name="title" type="VARCHAR(200)">
                 <constraints nullable="false"/>
             </column>
-            <column name="company_name" type="VARCHAR(255)">
+            <column name="company_name" type="VARCHAR(200)">
                 <constraints nullable="false"/>
             </column>
-            <column name="project_name" type="VARCHAR(255)"/>
+            <column name="project_name" type="VARCHAR(200)"/>
             <column name="description" type="TEXT"/>
             <column name="start_date" type="DATE">
                 <constraints nullable="false"/>
             </column>
             <column name="end_date" type="DATE"/>
-            <column name="current" type="BOOLEAN" defaultValueBoolean="false"/>
-            <column name="responsibilities" type="TEXT"/> <!-- Armazenará JSON de Set<String> -->
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+            <column name="current" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
-            <column name="updated_at" type="TIMESTAMP"/>
+            <column name="responsibilities" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
         </createTable>
     </changeSet>
 
-    <changeSet id="4" author="jonathanssm">
+    <!-- Criar tabela experience_technologies -->
+    <changeSet id="9" author="jonathanssm">
         <preConditions onFail="MARK_RAN">
             <not>
                 <tableExists tableName="experience_technologies" schemaName="portfolio"/>
@@ -84,12 +215,19 @@
         </preConditions>
         <createTable tableName="experience_technologies" schemaName="portfolio">
             <column name="experience_id" type="BIGINT">
-                <constraints nullable="false" foreignKeyName="fk_experience_technologies_experience" references="portfolio.experiences(id)"/>
+                <constraints nullable="false"/>
             </column>
             <column name="technology_id" type="BIGINT">
-                <constraints nullable="false" foreignKeyName="fk_experience_technologies_technology" references="portfolio.technologies(id)"/>
+                <constraints nullable="false"/>
             </column>
         </createTable>
-        <addPrimaryKey columnNames="experience_id, technology_id" tableName="experience_technologies" schemaName="portfolio"/>
+        <addPrimaryKey tableName="experience_technologies" columnNames="experience_id,technology_id" schemaName="portfolio"/>
+        <addForeignKeyConstraint baseTableName="experience_technologies" baseColumnNames="experience_id" 
+                                 constraintName="fk_experience_technologies_experience" referencedTableName="experiences" 
+                                 referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="experience_technologies" baseColumnNames="technology_id" 
+                                 constraintName="fk_experience_technologies_technology" referencedTableName="technologies" 
+                                 referencedColumnNames="id"/>
     </changeSet>
+
 </databaseChangeLog>

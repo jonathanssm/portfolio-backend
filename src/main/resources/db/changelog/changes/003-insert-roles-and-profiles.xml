@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Inserir Roles padrão (sem usuários - usuário admin criado via AdminController) -->
+    <changeSet id="1" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM portfolio.roles</sqlCheck>
+        </preConditions>
+        <insert tableName="roles" schemaName="portfolio">
+            <column name="name" value="USER"/>
+            <column name="description" value="Usuário comum"/>
+        </insert>
+        <insert tableName="roles" schemaName="portfolio">
+            <column name="name" value="ADMIN"/>
+            <column name="description" value="Administrador"/>
+        </insert>
+        <insert tableName="roles" schemaName="portfolio">
+            <column name="name" value="MODERATOR"/>
+            <column name="description" value="Moderador"/>
+        </insert>
+    </changeSet>
+
+    <!-- Inserir Perfis padrão -->
+    <changeSet id="2" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM portfolio.profiles</sqlCheck>
+        </preConditions>
+        <!-- Perfil de Usuário Básico -->
+        <insert tableName="profiles" schemaName="portfolio">
+            <column name="name" value="USER_BASIC"/>
+            <column name="description" value="Usuário básico com permissões limitadas"/>
+        </insert>
+
+        <!-- Perfil de Moderador -->
+        <insert tableName="profiles" schemaName="portfolio">
+            <column name="name" value="MODERATOR"/>
+            <column name="description" value="Moderador com permissões de moderação"/>
+        </insert>
+
+        <!-- Perfil de Administrador -->
+        <insert tableName="profiles" schemaName="portfolio">
+            <column name="name" value="ADMIN"/>
+            <column name="description" value="Administrador com todas as permissões"/>
+        </insert>
+
+        <!-- Perfil de Super Admin -->
+        <insert tableName="profiles" schemaName="portfolio">
+            <column name="name" value="SUPER_ADMIN"/>
+            <column name="description" value="Super administrador com acesso total"/>
+        </insert>
+    </changeSet>
+
+    <!-- Associar Roles aos Perfis -->
+    <changeSet id="3" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM portfolio.profile_roles</sqlCheck>
+        </preConditions>
+        <!-- USER_BASIC -> USER -->
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'USER_BASIC')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'USER')"/>
+        </insert>
+
+        <!-- MODERATOR -> USER + MODERATOR -->
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'MODERATOR')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'USER')"/>
+        </insert>
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'MODERATOR')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'MODERATOR')"/>
+        </insert>
+
+        <!-- ADMIN -> USER + MODERATOR + ADMIN -->
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'ADMIN')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'USER')"/>
+        </insert>
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'ADMIN')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'MODERATOR')"/>
+        </insert>
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'ADMIN')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'ADMIN')"/>
+        </insert>
+
+        <!-- SUPER_ADMIN -> USER + MODERATOR + ADMIN -->
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'SUPER_ADMIN')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'USER')"/>
+        </insert>
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'SUPER_ADMIN')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'MODERATOR')"/>
+        </insert>
+        <insert tableName="profile_roles" schemaName="portfolio">
+            <column name="profile_id" valueComputed="(SELECT id FROM portfolio.profiles WHERE name = 'SUPER_ADMIN')"/>
+            <column name="role_id" valueComputed="(SELECT id FROM portfolio.roles WHERE name = 'ADMIN')"/>
+        </insert>
+    </changeSet>
+
+
+</databaseChangeLog>

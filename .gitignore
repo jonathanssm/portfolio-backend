@@ -57,3 +57,21 @@ Thumbs.db
 # Arquivos temporários
 *.tmp
 *.temp
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.production
+
+# Certificados SSL
+ssl/*.pem
+ssl/*.crt
+ssl/*.key
+ssl/*.p12
+ssl/*.pfx
+
+# Logs do nginx
+nginx_logs/
+
+# Arquivos de deploy
+deploy.log

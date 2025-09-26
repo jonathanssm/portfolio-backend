@@ -28,7 +28,6 @@ public class ExperienceService {
     private final ExperienceMapper experienceMapper;
     private final ExperienceProducer experienceProducer;
 
-    @Transactional
     public ExperienceResponse createExperience(ExperienceRequest request) {
         log.info("📝 Creating new experience: {}", request.title());
 
@@ -70,7 +69,6 @@ public class ExperienceService {
         return experienceMapper.toResponse(experience);
     }
 
-    @Transactional
     public ExperienceResponse updateExperience(Long id, ExperienceRequest request) {
         log.info("♻️ Updating experience with id: {}", id);
 
@@ -98,7 +96,6 @@ public class ExperienceService {
         return experienceMapper.toResponse(experience);
     }
 
-    @Transactional
     public void deleteExperience(Long id) {
         log.info("🗑️ Deleting experience with id: {}", id);
 
