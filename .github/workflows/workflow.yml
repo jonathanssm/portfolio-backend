@@ -132,25 +132,29 @@ jobs:
             cd ${{ env.VM_PATH }}
 
             # 🏷️ Determina ambiente com limites de memória
+            # 🧠 Otimização para VM de 1GB RAM
+            # Total disponível: ~900MB (sistema usa ~100MB)
+            # Nginx: ~50MB, Backend: ~400MB, Sistema: ~100MB, Buffer: ~350MB
+            
             if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
               ENV="preview"
               PORT="8082"
-              MEMORY_LIMIT="256m"      # 256MB para preview
-              JAVA_OPTS="-Xms64m -Xmx192m -XX:+UseG1GC"
+              MEMORY_LIMIT="200m"      # 200MB para preview (mais conservador)
+              JAVA_OPTS="-Xms32m -Xmx128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
             else
               BRANCH="${GITHUB_REF#refs/heads/}"
               case "$BRANCH" in
                 "main")
                   ENV="prod"
                   PORT="8080"
-                  MEMORY_LIMIT="512m"  # 512MB para produção
-                  JAVA_OPTS="-Xms128m -Xmx384m -XX:+UseG1GC"
+                  MEMORY_LIMIT="350m"  # 350MB para produção (mais conservador)
+                  JAVA_OPTS="-Xms64m -Xmx256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
                   ;;
                 "develop")
                   ENV="staging"
                   PORT="8081"
-                  MEMORY_LIMIT="384m"  # 384MB para staging
-                  JAVA_OPTS="-Xms96m -Xmx256m -XX:+UseG1GC"
+                  MEMORY_LIMIT="300m"  # 300MB para staging (mais conservador)
+                  JAVA_OPTS="-Xms48m -Xmx192m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
                   ;;
                 *)
                   echo "🚫 Push detected on unsupported branch '$BRANCH'. Skipping deploy."
@@ -164,6 +168,17 @@ jobs:
             
             echo "🚀 Deploying to $ENV environment"
             echo "📊 Memory limits: $MEMORY_LIMIT total, JAVA_OPTS: $JAVA_OPTS"
+            
+            # 🧠 Verificar memória disponível
+            echo "🔍 Checking system memory..."
+            free -h
+            echo "💾 Available memory: $(free -m | awk 'NR==2{printf "%.1f%%", $3*100/$2 }')"
+            
+            # ⚠️ Aviso se memória baixa
+            AVAILABLE_MB=$(free -m | awk 'NR==2{print $7}')
+            if [ $AVAILABLE_MB -lt 200 ]; then
+              echo "⚠️ WARNING: Low memory available ($AVAILABLE_MB MB). Consider upgrading VM."
+            fi
 
             # 🐳 Verifica Docker
             if ! command -v docker &> /dev/null; then
@@ -171,6 +186,24 @@ jobs:
               curl -fsSL https://get.docker.com | sudo sh
               sudo systemctl enable docker
             fi
+            
+            # 🔧 Configurar swap para evitar OOM
+            echo "💾 Configuring swap for memory safety..."
+            if [ ! -f /swapfile ]; then
+              sudo fallocate -l 1G /swapfile
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile
+              sudo swapon /swapfile
+              echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+              echo "✅ Swap file created (1GB)"
+            else
+              echo "✅ Swap file already exists"
+            fi
+            
+            # 🧹 Limpar containers antigos para liberar memória
+            echo "🧹 Cleaning up old containers and images..."
+            sudo docker system prune -af --filter "until=24h" || true
+            sudo docker volume prune -f || true
 
             # 🔐 Configura certificados SSL
             echo "🔐 Setting up SSL certificates..."
@@ -254,12 +287,14 @@ jobs:
             # 🚀 Executa containers com limites de memória
             echo "🎯 Starting containers with memory limits..."
             
-            # Backend container
+            # Backend container com otimizações para 1GB RAM
             sudo docker run -d \
               --name $CONTAINER_NAME \
               --memory=$MEMORY_LIMIT \
               --memory-swap=$MEMORY_LIMIT \
               --cpus="0.5" \
+              --oom-kill-disable=false \
+              --memory-reservation=$(echo $MEMORY_LIMIT | sed 's/m//' | awk '{print int($1*0.8)"m"}') \
               -e JAVA_OPTS="$JAVA_OPTS" \
               -e SPRING_PROFILES_ACTIVE=production \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
@@ -267,16 +302,29 @@ jobs:
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \
               -e SPRING_KAFKA_BOOTSTRAP_SERVERS="${{ secrets.SPRING_KAFKA_BOOTSTRAP_SERVERS }}" \
               --restart unless-stopped \
+              --health-cmd="curl -f http://localhost:8080/actuator/health || exit 1" \
+              --health-interval=30s \
+              --health-timeout=10s \
+              --health-retries=3 \
               $IMAGE_NAME
 
-            # Nginx container
+            # Nginx container com otimizações para 1GB RAM
             sudo docker run -d \
               --name nginx-proxy \
+              --memory=64m \
+              --memory-swap=64m \
+              --cpus="0.2" \
+              --oom-kill-disable=false \
+              --memory-reservation=48m \
               -p 80:80 \
               -p 443:443 \
               -v $(pwd)/ssl:/etc/nginx/ssl:ro \
               --link $CONTAINER_NAME:portfolio-backend \
               --restart unless-stopped \
+              --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/actuator/health || exit 1" \
+              --health-interval=30s \
+              --health-timeout=5s \
+              --health-retries=3 \
               nginx-proxy
 
             # 🔍 Verificação Pós-Deploy
@@ -290,6 +338,24 @@ jobs:
             echo "📊 Memory usage:"
             sudo docker stats $CONTAINER_NAME --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" || true
             sudo docker stats nginx-proxy --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" || true
+            
+            # 🧠 Verificar uso de memória do sistema
+            echo "🔍 System memory after deploy:"
+            free -h
+            echo "💾 Memory usage: $(free -m | awk 'NR==2{printf "%.1f%%", $3*100/$2 }')"
+            
+            # ⚠️ Alertas de memória
+            USED_MB=$(free -m | awk 'NR==2{print $3}')
+            TOTAL_MB=$(free -m | awk 'NR==2{print $2}')
+            USAGE_PERCENT=$((USED_MB * 100 / TOTAL_MB))
+            
+            if [ $USAGE_PERCENT -gt 90 ]; then
+              echo "🚨 CRITICAL: Memory usage is ${USAGE_PERCENT}%! Consider upgrading VM."
+            elif [ $USAGE_PERCENT -gt 80 ]; then
+              echo "⚠️ WARNING: Memory usage is ${USAGE_PERCENT}%. Monitor closely."
+            else
+              echo "✅ Memory usage is healthy: ${USAGE_PERCENT}%"
+            fi
 
             if sudo docker inspect $CONTAINER_NAME &>/dev/null && sudo docker inspect nginx-proxy &>/dev/null; then
               echo "💚 SUCCESS: Containers deployed successfully!"
