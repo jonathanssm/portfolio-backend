@@ -187,7 +187,7 @@ jobs:
               curl -fsSL https://get.docker.com | sudo sh
               sudo systemctl enable docker
             fi
-            
+
             # 🔧 Configurar swap para evitar OOM
             echo "💾 Configuring swap for memory safety..."
             if [ ! -f /swapfile ]; then
@@ -325,8 +325,8 @@ jobs:
             elif [ "$ENV" = "staging" ]; then
               echo "🧪 STAGING DEPLOY - Updating existing container"
               # Para staging, apenas atualiza o container existente
-              sudo docker stop $CONTAINER_NAME 2>/dev/null || true
-              sudo docker rm $CONTAINER_NAME 2>/dev/null || true
+            sudo docker stop $CONTAINER_NAME 2>/dev/null || true
+            sudo docker rm $CONTAINER_NAME 2>/dev/null || true
             fi
             
             # Nginx só é recriado se não existir ou se for produção
