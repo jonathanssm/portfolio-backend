@@ -15,6 +15,7 @@ Backend em Java + Spring Boot + Kafka com nginx para produção HTTPS.
 - **Apache Kafka** - Mensageria assíncrona
 - **PostgreSQL 15** - Banco de dados principal
 - **Liquibase** - Controle de versão do banco
+- **SpringDoc OpenAPI 3** - Documentação automática da API
 - **Nginx** - Proxy reverso e SSL/TLS
 - **Docker** - Containerização
 - **Maven** - Gerenciamento de dependências
@@ -83,6 +84,10 @@ Backend em Java + Spring Boot + Kafka com nginx para produção HTTPS.
    # Ou via IDE (IntelliJ, VS Code, etc.)
    # Execute a classe PortfolioBackendApplication
    ```
+
+5. **Acesse a documentação da API**
+   - **Swagger UI**: http://localhost:8080/api/swagger-ui.html
+   - **OpenAPI JSON**: http://localhost:8080/api/api-docs
 
 ### Testes
 ```bash
@@ -205,6 +210,21 @@ portfolio-backend/
 | PostgreSQL | 5432 | Banco de dados |
 | Kafka | 9092, 29092 | Mensageria |
 | Kafdrop | 19000 | Interface Kafka |
+| Swagger UI | 8080/api/swagger-ui.html | Documentação da API |
+
+## 📚 Documentação da API
+
+A API possui documentação automática gerada pelo **SpringDoc OpenAPI 3**:
+
+- **Swagger UI**: Interface interativa para testar os endpoints
+- **OpenAPI JSON**: Especificação da API em formato JSON
+- **Documentação completa**: Todos os endpoints, parâmetros, respostas e exemplos
+
+### Acessando a Documentação
+
+- **Local**: http://localhost:8080/api/swagger-ui.html
+- **Desenvolvimento**: https://staging.jonathanssm.com/api/swagger-ui.html
+- **Produção**: https://api.jonathanssm.com/api/swagger-ui.html
 
 ## 🔒 Segurança
 
