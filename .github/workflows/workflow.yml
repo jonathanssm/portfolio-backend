@@ -246,7 +246,7 @@ jobs:
               --memory-swap=$MEMORY_LIMIT \
               --cpus="0.5" \
               -e JAVA_OPTS="$JAVA_OPTS" \
-              -e SPRING_PROFILES_ACTIVE=$ENV \
+              -e SPRING_PROFILES_ACTIVE=production \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.SPRING_DATASOURCE_PASSWORD }}" \

@@ -2,7 +2,7 @@ spring:
   application:
     name: portfolio-backend
 
-# Remover depois que implementar o auth
+  # Remover depois que implementar o auth
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
@@ -11,8 +11,8 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
-    show-sql:  ${SPRING_JPA_HIBERNATE_SHOW_SQL:false}
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
+    show-sql: ${SPRING_JPA_HIBERNATE_SHOW_SQL:false}
     properties:
       org.hibernate.envers.default_schema: portfolio_aud
       hibernate:
@@ -51,9 +51,10 @@ spring:
 
 logging:
   level:
-    com.jonathanssm.portfoliobackend: INFO
-    org.springframework: WARN
-    org.hibernate: ERROR
+    com.jonathanssm.portfoliobackend: ${LOGGING_LEVEL_COM_JONATHANSSM_PORTFOLIOBACKEND:INFO}
+    org.springframework: ${LOGGING_LEVEL_ORG_SPRINGFRAMEWORK:WARN}
+    org.hibernate: ${LOGGING_LEVEL_ORG_HIBERNATE:ERROR}
+    org.apache.kafka: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
@@ -62,4 +63,5 @@ logging:
 
 management:
   endpoints.web.exposure.include: health,info,metrics
-  endpoint.health.show-details: always
+  endpoint.health.show-details: ${MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS:when-authorized}
+  endpoint.health.probes.enabled: true
