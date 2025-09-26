@@ -1,6 +1,7 @@
 package com.jonathanssm.portfoliobackend.dto;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 public record AuthResponse(
         String token,
@@ -15,7 +16,7 @@ public record AuthResponse(
             String email,
             String firstName,
             String lastName,
-            String role
+            Set<String> roles
     ) {
     }
 }

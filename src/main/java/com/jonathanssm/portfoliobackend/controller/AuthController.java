@@ -1,8 +1,10 @@
 package com.jonathanssm.portfoliobackend.controller;
 
+import com.jonathanssm.portfoliobackend.constants.ApplicationConstants;
 import com.jonathanssm.portfoliobackend.dto.AuthRequest;
 import com.jonathanssm.portfoliobackend.dto.AuthResponse;
 import com.jonathanssm.portfoliobackend.model.User;
+import com.jonathanssm.portfoliobackend.service.UserService;
 import com.jonathanssm.portfoliobackend.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -20,6 +22,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -30,6 +33,7 @@ public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtUtil jwtUtil;
+    private final UserService userService;
 
     @Operation(
             summary = "Autenticar usuário",
@@ -54,39 +58,35 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest request) {
         log.info("🔐 Attempting login for user: {}", request.username());
 
-        try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            request.username(),
-                            request.password()
-                    )
-            );
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.username(),
+                        request.password()
+                )
+        );
 
-            User user = (User) authentication.getPrincipal();
-            String token = jwtUtil.generateToken(user);
+        User user = (User) authentication.getPrincipal();
+        String token = jwtUtil.generateToken(user);
 
-            AuthResponse response = new AuthResponse(
-                    token,
-                    "Bearer",
-                    86400L, // 24 horas
-                    LocalDateTime.now().plusHours(24),
-                    new AuthResponse.UserInfo(
-                            user.getId(),
-                            user.getUsername(),
-                            user.getEmail(),
-                            user.getFirstName(),
-                            user.getLastName(),
-                            user.getRole().name()
-                    )
-            );
+        AuthResponse response = new AuthResponse(
+                token,
+                ApplicationConstants.Authentication.TOKEN_TYPE,
+                ApplicationConstants.Authentication.TOKEN_EXPIRATION_SECONDS,
+                LocalDateTime.now().plusHours(ApplicationConstants.Authentication.TOKEN_EXPIRATION_HOURS),
+                new AuthResponse.UserInfo(
+                        user.getId(),
+                        user.getUsername(),
+                        user.getEmail(),
+                        user.getFirstName(),
+                        user.getLastName(),
+                        user.getAllRoles().stream()
+                                .map(role -> role.getName().name())
+                                .collect(Collectors.toSet())
+                )
+        );
 
-            log.info("✅ Login successful for user: {}", user.getUsername());
-            return ResponseEntity.ok(response);
-
-        } catch (BadCredentialsException e) {
-            log.warn("❌ Login failed for user: {} - Invalid credentials", request.username());
-            throw new IllegalArgumentException("Credenciais inválidas");
-        }
+        log.info("✅ Login successful for user: {}", user.getUsername());
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -104,8 +104,8 @@ public class AuthController {
             )
     })
     @PostMapping("/validate")
-    public ResponseEntity<Void> validateToken(@RequestHeader("Authorization") String token) {
-        if (token.startsWith("Bearer ")) {
+    public ResponseEntity<Void> validateToken(@RequestHeader(ApplicationConstants.Authentication.AUTHORIZATION_HEADER) String token) {
+        if (token.startsWith(ApplicationConstants.Authentication.BEARER_PREFIX)) {
             token = token.substring(7);
         }
 

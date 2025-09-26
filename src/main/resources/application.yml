@@ -2,12 +2,11 @@ spring:
   application:
     name: portfolio-backend
 
-
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:validate}
-    show-sql: ${SPRING_JPA_HIBERNATE_SHOW_SQL:false}
+    show-sql:  ${SPRING_JPA_HIBERNATE_SHOW_SQL:false}
     properties:
       org.hibernate.envers.default_schema: portfolio_aud
       hibernate:
@@ -21,7 +20,7 @@ spring:
   liquibase:
     enabled: ${SPRING_LIQUIBASE_ENABLED:true}
     change-log: classpath:db/changelog/db.changelog-master.xml
-    default-schema: portfolio_aud
+    default-schema: portfolio
     liquibase-schema: public
     drop-first: false
     parameters:

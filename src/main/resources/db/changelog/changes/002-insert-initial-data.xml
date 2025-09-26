@@ -6,6 +6,9 @@
                         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
     <changeSet id="1" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM portfolio.technology_types</sqlCheck>
+        </preConditions>
         <insert tableName="technology_types" schemaName="portfolio">
             <column name="name" value="Backend"/>
         </insert>
@@ -30,6 +33,9 @@
     </changeSet>
 
     <changeSet id="2" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM portfolio.technologies</sqlCheck>
+        </preConditions>
         <!-- Backend -->
         <insert tableName="technologies" schemaName="portfolio">
             <column name="name" value="Java"/>
@@ -126,6 +132,9 @@
     </changeSet>
 
     <changeSet id="3" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM portfolio.experiences</sqlCheck>
+        </preConditions>
         <insert tableName="experiences" schemaName="portfolio">
             <column name="title" value="Desenvolvedor Pleno"/>
             <column name="company_name" value="First Decision"/>
@@ -182,6 +191,9 @@
     </changeSet>
 
     <changeSet id="4" author="jonathanssm">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT COUNT(*) FROM portfolio.experience_technologies</sqlCheck>
+        </preConditions>
         <!-- First Decision -->
         <insert tableName="experience_technologies" schemaName="portfolio">
             <column name="experience_id" valueComputed="(SELECT id FROM portfolio.experiences WHERE company_name = 'First Decision' AND title = 'Desenvolvedor Pleno')"/>

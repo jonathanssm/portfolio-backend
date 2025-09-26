@@ -1,6 +1,8 @@
 package com.jonathanssm.portfoliobackend.config;
 
 import com.jonathanssm.portfoliobackend.util.JwtUtil;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,7 +23,11 @@ import static org.springframework.security.config.Customizer.withDefaults;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity()
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final ApplicationContext applicationContext;
+    private final JwtUtil jwtUtil;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -34,14 +40,13 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter jwtAuthenticationFilter() {
+        UserDetailsService userDetailsService = applicationContext.getBean(UserDetailsService.class);
         return new JwtAuthenticationFilter(jwtUtil, userDetailsService);
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   UserDetailsService userDetailsService,
-                                                   JwtUtil jwtUtil) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(withDefaults())
@@ -57,7 +62,7 @@ public class SecurityConfig {
                         // Todos os outros endpoints requerem autenticação
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthenticationFilter(jwtUtil, userDetailsService), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

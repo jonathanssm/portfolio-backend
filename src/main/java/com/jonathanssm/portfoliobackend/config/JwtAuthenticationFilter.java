@@ -1,5 +1,6 @@
 package com.jonathanssm.portfoliobackend.config;
 
+import com.jonathanssm.portfoliobackend.constants.ApplicationConstants;
 import com.jonathanssm.portfoliobackend.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -30,11 +31,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
             throws ServletException, IOException {
 
-        final String authHeader = request.getHeader("Authorization");
+        final String authHeader = request.getHeader(ApplicationConstants.Authentication.AUTHORIZATION_HEADER);
         final String jwt;
         final String username;
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (authHeader == null || !authHeader.startsWith(ApplicationConstants.Authentication.BEARER_PREFIX)) {
             filterChain.doFilter(request, response);
             return;
         }

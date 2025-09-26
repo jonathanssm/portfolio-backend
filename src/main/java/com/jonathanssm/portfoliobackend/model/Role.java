@@ -11,7 +11,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.Set;
 
 @Getter
 @Setter
@@ -19,31 +18,23 @@ import java.util.Set;
 @AllArgsConstructor
 @Audited
 @Entity
-@Table(name = "technologies", schema = "portfolio")
+@Table(name = "roles", schema = "portfolio")
 @EntityListeners(AuditingEntityListener.class)
-public class Technology {
+public class Role {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, unique = true)
-    private String name;
+    private RoleName name;
 
-    @Column(length = 1000)
+    @Column(length = 500)
     private String description;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "type_id", nullable = false)
-    private TechnologyType type;
-
-    @Column(name = "icon_url", length = 500)
-    private String iconUrl;
-
-    private Long version;
-
-    @ManyToMany(mappedBy = "technologies")
-    private Set<Experience> experiences;
+    // Relacionamento indireto via Profile - não mapear diretamente
+    // User -> Profile -> Role (many-to-many-to-many)
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)
@@ -52,4 +43,20 @@ public class Technology {
     @LastModifiedDate
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    public enum RoleName {
+        USER("Usuário comum"),
+        ADMIN("Administrador"),
+        MODERATOR("Moderador");
+
+        private final String description;
+
+        RoleName(String description) {
+            this.description = description;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+    }
 }

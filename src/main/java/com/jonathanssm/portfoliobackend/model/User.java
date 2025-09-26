@@ -15,7 +15,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Getter
 @Setter
@@ -46,9 +48,14 @@ public class User implements UserDetails {
     @Column(name = "last_name")
     private String lastName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role = Role.USER;
+    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+            name = "user_profiles",
+            schema = "portfolio",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "profile_id")
+    )
+    private Set<Profile> profiles = new HashSet<>();
 
     @Column(name = "is_enabled", nullable = false)
     private Boolean isEnabled = true;
@@ -72,7 +79,10 @@ public class User implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Set.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        return profiles.stream()
+                .flatMap(profile -> profile.getRoles().stream())
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getName().name()))
+                .collect(Collectors.toSet());
     }
 
     @Override
@@ -105,7 +115,49 @@ public class User implements UserDetails {
         return isEnabled;
     }
 
-    public enum Role {
-        USER, ADMIN, MODERATOR
+    // Métodos de conveniência para gerenciar perfis
+    public void addProfile(Profile profile) {
+        this.profiles.add(profile);
+        profile.getUsers().add(this);
+    }
+
+    public void removeProfile(Profile profile) {
+        this.profiles.remove(profile);
+        profile.getUsers().remove(this);
+    }
+
+    public boolean hasProfile(String profileName) {
+        return profiles.stream()
+                .anyMatch(profile -> profile.getName().equals(profileName));
+    }
+
+    public boolean hasRole(Role.RoleName roleName) {
+        return profiles.stream()
+                .flatMap(profile -> profile.getRoles().stream())
+                .anyMatch(role -> role.getName() == roleName);
+    }
+
+    public Set<Role> getAllRoles() {
+        return profiles.stream()
+                .flatMap(profile -> profile.getRoles().stream())
+                .collect(Collectors.toSet());
+    }
+
+    // Métodos para adicionar/remover roles diretamente (não recomendado, mas necessário para compatibilidade)
+    public void addRole(Role role) {
+        // Encontra um perfil que contenha esta role ou cria um novo perfil
+        Profile profileWithRole = profiles.stream()
+                .filter(profile -> profile.getRoles().contains(role))
+                .findFirst()
+                .orElse(null);
+
+        if (profileWithRole == null && !profiles.isEmpty()) {
+            // Se não existe perfil com esta role, adiciona ao primeiro perfil disponível
+            profiles.iterator().next().addRole(role);
+        }
+    }
+
+    public void removeRole(Role role) {
+        profiles.forEach(profile -> profile.removeRole(role));
     }
 }

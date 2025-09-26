@@ -9,5 +9,6 @@
     <include file="changes/000a-set-search-path.xml" relativeToChangelogFile="true"/>
     <include file="changes/001-create-tables.xml" relativeToChangelogFile="true"/>
     <include file="changes/002-insert-initial-data.xml" relativeToChangelogFile="true"/>
+    <include file="changes/003-insert-roles-and-profiles.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
