@@ -5,6 +5,7 @@ import com.jonathanssm.portfoliobackend.dto.ExperienceResponse;
 import com.jonathanssm.portfoliobackend.service.ExperienceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @Validated
 @RestController
 @RequestMapping("/experiences")
@@ -29,7 +31,13 @@ public class ExperienceController {
 
     @GetMapping
     public ResponseEntity<List<ExperienceResponse>> getAllExperiences() {
-        return ResponseEntity.ok(experienceService.getAllExperiences());
+        try {
+            return ResponseEntity.ok(experienceService.getAllExperiences());
+        } catch (Exception e) {
+            log.error("Error fetching experiences", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(List.of());
+        }
     }
 
     @GetMapping("/{id}")
