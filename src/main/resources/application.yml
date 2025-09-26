@@ -2,10 +2,6 @@ spring:
   application:
     name: portfolio-backend
 
-server:
-  servlet:
-    context-path: /api
-
   # Remover depois que implementar o auth
   autoconfigure:
     exclude:
@@ -33,6 +29,7 @@ server:
     default-schema: portfolio_aud
     liquibase-schema: public
     drop-first: false
+    validate-on-migrate: false # Adicionado para ignorar checksums em produção
     parameters:
       logLevel: INFO
 
@@ -54,6 +51,10 @@ server:
       properties:
         spring.json.trusted.packages: com.jonathanssm.portfoliobackend.model.*
 
+server:
+  servlet:
+    context-path: /api
+
 logging:
   level:
     com.jonathanssm.portfoliobackend: ${LOGGING_LEVEL_COM_JONATHANSSM_PORTFOLIOBACKEND:INFO}
@@ -65,6 +66,8 @@ logging:
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: logs/application.log
+    max-file-size: 10MB
+    max-history: 30
 
 management:
   endpoints.web.exposure.include: health,info,metrics
