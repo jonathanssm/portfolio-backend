@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -47,6 +48,7 @@ public class ExperienceController {
                     content = @Content
             )
     })
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<ExperienceResponse> createExperience(
             @Valid @RequestBody ExperienceRequest request) {
@@ -123,6 +125,7 @@ public class ExperienceController {
                     content = @Content
             )
     })
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<ExperienceResponse> updateExperience(
             @Parameter(description = "ID da experiência", required = true)
@@ -147,6 +150,7 @@ public class ExperienceController {
                     content = @Content
             )
     })
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteExperience(
             @Parameter(description = "ID da experiência", required = true)

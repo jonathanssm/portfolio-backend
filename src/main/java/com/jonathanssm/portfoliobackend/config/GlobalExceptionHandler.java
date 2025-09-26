@@ -55,6 +55,35 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        log.warn("Argumento inválido: {}", ex.getMessage());
+
+        // Se a mensagem contém "already exists", retorna 409 CONFLICT
+        if (ex.getMessage().contains("already exists")) {
+            ApiResponse response = ApiResponse.builder()
+                    .timestamp(LocalDateTime.now())
+                    .status(HttpStatus.CONFLICT.value())
+                    .error(HttpStatus.CONFLICT.getReasonPhrase())
+                    .message(ex.getMessage())
+                    .path(request.getRequestURI())
+                    .build();
+            return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+        }
+
+        // Caso contrário, retorna 400 BAD REQUEST
+        ApiResponse response = ApiResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse> handleValidationExceptions(MethodArgumentNotValidException ex, HttpServletRequest request) {
         log.warn("Erro de validação de argumentos: {}", ex.getMessage());
