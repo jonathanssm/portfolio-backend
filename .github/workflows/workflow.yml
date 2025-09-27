@@ -248,9 +248,35 @@ jobs:
             
             # SEMPRE criar certificado auto-assinado primeiro (para garantir que nginx suba)
             echo "🏠 Criando certificado auto-assinado temporário..."
+            
+            # Verificar se VM_HOST é IP ou domínio para configurar SAN corretamente
+            echo "🔍 Verificando tipo de VM_HOST: ${{ env.VM_HOST }}"
+            
+            if [[ "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              # É um IP - usar apenas IP no SAN
+              SAN="IP:${{ env.VM_HOST }}"
+              echo "✅ Detectado IP: ${{ env.VM_HOST }}"
+            else
+              # É um domínio - usar DNS no SAN e tentar IP se possível
+              SAN="DNS:${{ env.VM_HOST }}"
+              echo "✅ Detectado domínio: ${{ env.VM_HOST }}"
+              
+              # Tentar resolver IP do domínio para incluir no SAN
+              echo "🔍 Tentando resolver IP do domínio..."
+              RESOLVED_IP=$(nslookup ${{ env.VM_HOST }} 2>/dev/null | grep "Address:" | tail -1 | awk '{print $2}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || echo "")
+              if [ ! -z "$RESOLVED_IP" ]; then
+                SAN="${SAN},IP:${RESOLVED_IP}"
+                echo "✅ IP resolvido: $RESOLVED_IP"
+              else
+                echo "⚠️ Não foi possível resolver IP do domínio"
+              fi
+            fi
+            
+            echo "📋 SAN configurado: $SAN"
+            
             sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
               -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
-              -addext "subjectAltName=DNS:${{ env.VM_HOST }},IP:${{ env.VM_HOST }}"
+              -addext "subjectAltName=${SAN}"
             
             # Verificar se é domínio real para tentar Let's Encrypt
             if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
