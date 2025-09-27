@@ -7,4 +7,4 @@ COPY config.yml /etc/cloudflared/config.yml
 EXPOSE 8080
 
 # Run cloudflared tunnel with token authentication
-CMD ["tunnel", "--config", "/etc/cloudflared/config.yml", "run", "--token", "$TUNNEL_TOKEN"]
+CMD ["tunnel", "run", "--token", "$TUNNEL_TOKEN"]
