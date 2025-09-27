@@ -467,16 +467,16 @@ jobs:
             sudo docker run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --network portfolio-network \
-              --memory=450m \
-              --memory-swap=450m \
-              --cpus="0.5" \
+              --memory=600m \
+              --memory-swap=600m \
+              --cpus="0.6" \
               --restart unless-stopped \
               --health-cmd="curl -f http://localhost:8080/api/actuator/health || exit 1" \
               --health-interval=60s \
               --health-timeout=30s \
               --health-retries=5 \
               --health-start-period=120s \
-              -e JAVA_OPTS="-Xms64m -Xmx360m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops" \
+              -e JAVA_OPTS="-Xms128m -Xmx480m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops -XX:+UseContainerSupport" \
               -e SPRING_PROFILES_ACTIVE=production \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
@@ -493,9 +493,9 @@ jobs:
               sudo docker run -d \
               --name ${{ env.NGINX_CONTAINER }} \
               --network portfolio-network \
-                --memory=50m \
-                --memory-swap=50m \
-                --cpus="0.1" \
+              --memory=40m \
+              --memory-swap=40m \
+              --cpus="0.1" \
               --restart unless-stopped \
                 -p 80:80 \
                 -p 443:443 \
