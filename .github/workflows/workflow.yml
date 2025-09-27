@@ -179,7 +179,7 @@ jobs:
           script: |
             set -e
             cd ${{ env.VM_PATH }}
-            
+
             echo "🧹 Cleaning up environment..."
             
             # Stop and remove existing containers
@@ -188,6 +188,9 @@ jobs:
             
             # Remove old images to free space
             sudo docker rmi portfolio-backend-prod nginx-proxy 2>/dev/null || true
+            
+            # Clean up Docker network
+            sudo docker network rm portfolio-network 2>/dev/null || true
             
             # Clean up Docker system
             sudo docker system prune -af --filter "until=24h" || true
@@ -227,8 +230,8 @@ jobs:
               fi
             fi
             
-            sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-              -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
+              sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
+                -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
               -addext "subjectAltName=${SAN}"
             
             # Try Let's Encrypt for real domains
@@ -246,9 +249,9 @@ jobs:
                 --domains "${{ env.VM_HOST }}" \
                 --expand 2>/dev/null; then
                 
-                if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
-                  sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
-                  sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
+              if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
+                sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
+                sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
                   echo "✅ Let's Encrypt certificate configured"
                   
                   # Setup auto-renewal
@@ -283,18 +286,18 @@ jobs:
             echo "🌐 Setting up Nginx configuration..."
             
             # Create nginx directory if not exists
-            mkdir -p nginx
-            
+              mkdir -p nginx
+              
             # Download nginx files from repository
             echo "📥 Downloading nginx configuration..."
-            curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github.v3.raw" \
-              -o nginx/Dockerfile \
+              curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3.raw" \
+                -o nginx/Dockerfile \
               "https://api.github.com/repos/${{ github.repository }}/contents/nginx/Dockerfile?ref=main"
-            
-            curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github.v3.raw" \
-              -o nginx/nginx.conf \
+              
+              curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Accept: application/vnd.github.v3.raw" \
+                -o nginx/nginx.conf \
               "https://api.github.com/repos/${{ github.repository }}/contents/nginx/nginx.conf?ref=main"
             
             # Simplify nginx.conf for single production environment
@@ -455,10 +458,15 @@ jobs:
             echo "🔨 Building nginx image..."
             sudo docker build -t nginx-proxy ./nginx
             
+            # Create Docker network for communication
+            echo "🌐 Creating Docker network..."
+            sudo docker network create portfolio-network 2>/dev/null || echo "Network already exists"
+            
             # Deploy application container
             echo "🚀 Starting application container..."
             sudo docker run -d \
               --name ${{ env.CONTAINER_NAME }} \
+              --network portfolio-network \
               --memory=450m \
               --memory-swap=450m \
               --cpus="0.5" \
@@ -481,21 +489,22 @@ jobs:
               portfolio-backend-prod
             
             # Deploy nginx container
-            echo "🌐 Starting nginx container..."
-            sudo docker run -d \
+              echo "🌐 Starting nginx container..."
+              sudo docker run -d \
               --name ${{ env.NGINX_CONTAINER }} \
-              --memory=50m \
-              --memory-swap=50m \
-              --cpus="0.1" \
+              --network portfolio-network \
+                --memory=50m \
+                --memory-swap=50m \
+                --cpus="0.1" \
               --restart unless-stopped \
-              -p 80:80 \
-              -p 443:443 \
-              -v $(pwd)/ssl:/etc/nginx/ssl:ro \
-              --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || exit 1" \
-              --health-interval=30s \
-              --health-timeout=5s \
-              --health-retries=3 \
-              nginx-proxy
+                -p 80:80 \
+                -p 443:443 \
+                -v $(pwd)/ssl:/etc/nginx/ssl:ro \
+                --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || exit 1" \
+                --health-interval=30s \
+                --health-timeout=5s \
+                --health-retries=3 \
+                nginx-proxy
             
             echo "✅ Application deployed successfully"
             
@@ -606,7 +615,7 @@ jobs:
               sudo docker logs --tail 30 ${{ env.NGINX_CONTAINER }}
               exit 1
             fi
-            
+
             # Check SSL certificate
             echo "🔐 Checking SSL certificate..."
             if [ -f "ssl/cert.pem" ]; then
