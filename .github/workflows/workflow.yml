@@ -611,7 +611,7 @@ jobs:
               # Check if nginx is running (not restarting)
               NGINX_STATUS=$(sudo docker ps --format "{{.Status}}" --filter "name=${{ env.NGINX_CONTAINER }}" | head -1)
               if echo "$NGINX_STATUS" | grep -q "Up" && ! echo "$NGINX_STATUS" | grep -q "Restarting"; then
-                if sudo docker exec ${{ env.NGINX_CONTAINER }} wget --no-verbose --tries=1 --spider http://localhost/nginx_status >/dev/null 2>&1; then
+                if sudo docker exec ${{ env.NGINX_CONTAINER }} wget --no-verbose --tries=1 --spider https://localhost/nginx_status --no-check-certificate >/dev/null 2>&1; then
                   echo "✅ Nginx is healthy"
                   break
                 fi
