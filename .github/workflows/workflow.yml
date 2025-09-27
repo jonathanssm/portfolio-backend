@@ -239,13 +239,13 @@ jobs:
               
               echo "✅ Certbot instalado com sucesso"
               
-              # Gerar certificado Let's Encrypt para todos os subdomínios
+              # Gerar certificado Let's Encrypt apenas para domínios existentes
               sudo certbot certonly \
                 --standalone \
                 --non-interactive \
                 --agree-tos \
                 --email "${{ secrets.SSL_EMAIL || format('admin@{0}', env.VM_HOST) }}" \
-                --domains "${{ env.VM_HOST }},staging.${{ env.VM_HOST }},preview.${{ env.VM_HOST }},api.${{ env.VM_HOST }}" \
+                --domains "${{ env.VM_HOST }},staging.jonathanssm.com" \
                 --expand
               
               # Verificar se certificados foram gerados
@@ -329,14 +329,10 @@ jobs:
             sudo docker rm $CONTAINER_NAME 2>/dev/null || true
             fi
             
-            # Nginx só é recriado se não existir ou se for produção
-            if ! sudo docker inspect nginx-proxy &>/dev/null || [ "$ENV" = "prod" ]; then
-              echo "🌐 Updating nginx configuration..."
-              sudo docker stop nginx-proxy 2>/dev/null || true
-              sudo docker rm nginx-proxy 2>/dev/null || true
-            else
-              echo "🌐 Nginx already running, keeping it active"
-            fi
+            # Nginx sempre é recriado para garantir configuração correta
+            echo "🌐 Updating nginx configuration..."
+            sudo docker stop nginx-proxy 2>/dev/null || true
+            sudo docker rm nginx-proxy 2>/dev/null || true
 
             # 🚀 Executa containers com limites de memória
             echo "🎯 Starting containers with memory limits..."
@@ -369,29 +365,23 @@ jobs:
               $IMAGE_NAME
 
             # Nginx container otimizado para 1GB RAM
-            if ! sudo docker inspect nginx-proxy &>/dev/null; then
-              echo "🌐 Starting nginx container..."
-              sudo docker run -d \
-                --name nginx-proxy \
-                --memory=50m \
-                --memory-swap=50m \
-                --cpus="0.1" \
-                --oom-kill-disable=false \
-                --memory-reservation=40m \
-                -p 80:80 \
-                -p 443:443 \
-                -v $(pwd)/ssl:/etc/nginx/ssl:ro \
-                --restart unless-stopped \
-                --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || exit 1" \
-                --health-interval=30s \
-                --health-timeout=5s \
-                --health-retries=3 \
-                nginx-proxy
-            else
-              echo "🌐 Nginx already running, linking to $CONTAINER_NAME..."
-              # Linkar o novo container ao nginx existente
-              sudo docker network connect bridge $CONTAINER_NAME 2>/dev/null || true
-            fi
+            echo "🌐 Starting nginx container..."
+            sudo docker run -d \
+              --name nginx-proxy \
+              --memory=50m \
+              --memory-swap=50m \
+              --cpus="0.1" \
+              --oom-kill-disable=false \
+              --memory-reservation=40m \
+              -p 80:80 \
+              -p 443:443 \
+              -v $(pwd)/ssl:/etc/nginx/ssl:ro \
+              --restart unless-stopped \
+              --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || exit 1" \
+              --health-interval=30s \
+              --health-timeout=5s \
+              --health-retries=3 \
+              nginx-proxy
 
             # 🔍 Verificação Pós-Deploy
             echo "✅ Deployment completed! Verifying..."
