@@ -349,6 +349,7 @@ jobs:
               --memory-swap=64m \
               --cpus="0.1" \
               --restart unless-stopped \
+              -e TUNNEL_ORIGIN_CERT="" \
               cloudflare/cloudflared:2025.9.1 \
               tunnel --no-autoupdate run --token ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
             
