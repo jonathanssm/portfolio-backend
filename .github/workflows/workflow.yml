@@ -18,7 +18,7 @@ env:
   VM_PATH: /home/ubuntu/portfolio-backend
   JAR_NAME: portfolio-backend-0.0.1-SNAPSHOT.jar
   CONTAINER_NAME: portfolio-backend-prod
-  NGINX_CONTAINER: nginx-proxy
+  CLOUDFLARE_CONTAINER: cloudflare-tunnel
 
 jobs:
   # 🔍 Validation and Tests (always runs)
@@ -157,7 +157,7 @@ jobs:
         run: |
           cp target/$JAR_NAME .
           ls -la $JAR_NAME Dockerfile
-          ls -la nginx/
+          ls -la cloudflare/
 
       - name: Setup VM directory
         uses: appleboy/ssh-action@v1.0.0
@@ -184,7 +184,7 @@ jobs:
           host: ${{ env.VM_HOST }}
           username: ${{ env.VM_USER }}
           key: ${{ env.VM_SSH_KEY }}
-          source: "${{ env.JAR_NAME }},Dockerfile,nginx/"
+          source: "${{ env.JAR_NAME }},Dockerfile,cloudflare/"
           target: ${{ env.VM_PATH }}
           overwrite: true
 
@@ -200,7 +200,7 @@ jobs:
             
             echo "📦 Verifying artifacts on VM..."
             ls -la
-            ls -la nginx/
+            ls -la cloudflare/
             
             if [ ! -f "${{ env.JAR_NAME }}" ]; then
               echo "❌ JAR not found on VM"
@@ -212,13 +212,13 @@ jobs:
               exit 1
             fi
             
-            if [ ! -f "nginx/nginx.conf" ]; then
-              echo "❌ nginx.conf not found on VM"
+            if [ ! -f "cloudflare/config.yml" ]; then
+              echo "❌ cloudflare/config.yml not found on VM"
               exit 1
             fi
             
-            if [ ! -f "nginx/Dockerfile" ]; then
-              echo "❌ nginx Dockerfile not found on VM"
+            if [ ! -f "cloudflare/Dockerfile" ]; then
+              echo "❌ cloudflare/Dockerfile not found on VM"
               exit 1
             fi
             
@@ -237,11 +237,11 @@ jobs:
             echo "🧹 Cleaning up environment..."
             
             # Stop and remove existing containers
-            sudo docker stop ${{ env.CONTAINER_NAME }} ${{ env.NGINX_CONTAINER }} 2>/dev/null || true
-            sudo docker rm ${{ env.CONTAINER_NAME }} ${{ env.NGINX_CONTAINER }} 2>/dev/null || true
+            sudo docker stop ${{ env.CONTAINER_NAME }} ${{ env.CLOUDFLARE_CONTAINER }} 2>/dev/null || true
+            sudo docker rm ${{ env.CONTAINER_NAME }} ${{ env.CLOUDFLARE_CONTAINER }} 2>/dev/null || true
             
             # Remove old images to free space
-            sudo docker rmi portfolio-backend-prod nginx-proxy 2>/dev/null || true
+            sudo docker rmi portfolio-backend-prod cloudflare-tunnel 2>/dev/null || true
             
             # Clean up Docker network
             sudo docker network rm portfolio-network 2>/dev/null || true
@@ -257,7 +257,7 @@ jobs:
             
             echo "✅ Environment cleaned and ready"
 
-      - name: 🔐 Setup SSL Certificates (Let's Encrypt)
+      - name: 🔐 Setup Cloudflare Tunnel Configuration
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ env.VM_HOST }}
@@ -267,92 +267,31 @@ jobs:
             set -e
             cd ${{ env.VM_PATH }}
             
-            echo "🔐 Setting up SSL certificates..."
-            mkdir -p ssl
+            echo "🔐 Setting up Cloudflare Tunnel configuration..."
             
-            # Install certbot if not available
-            if ! command -v certbot &> /dev/null; then
-              echo "📦 Installing certbot..."
-              sudo apt-get update && sudo apt-get install -y certbot
-            fi
+            # Create cloudflared directory
+            mkdir -p /etc/cloudflared
             
-            # Check if domain is accessible before attempting Let's Encrypt
-            if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
-              echo "🌐 Checking domain accessibility for Let's Encrypt..."
-              
-              # Test if domain resolves and port 80 is accessible
-              if timeout 10 nslookup ${{ env.VM_HOST }} >/dev/null 2>&1; then
-                echo "✅ Domain resolves correctly"
-                
-                # Test if port 80 is accessible externally
-                if timeout 10 curl -s -I http://${{ env.VM_HOST }} >/dev/null 2>&1; then
-                  echo "✅ Port 80 is accessible externally"
-                  
-                  # Stop any service using port 80/443
-                  sudo systemctl stop nginx 2>/dev/null || true
-                  sudo pkill -f nginx 2>/dev/null || true
-                  
-                  # Wait a moment for ports to be released
-                  sleep 5
-                  
-                  # Get Let's Encrypt certificate with timeout
-                  echo "🔐 Attempting Let's Encrypt certificate..."
-                  if timeout 300 sudo certbot certonly --standalone --non-interactive --agree-tos \
-                    --email "admin@${{ env.VM_HOST }}" \
-                    --domains "${{ env.VM_HOST }}" \
-                    --expand 2>/dev/null; then
-                    
-                    if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
-                      echo "✅ Let's Encrypt certificate obtained successfully!"
-                      
-                      # Copy certificates to ssl directory
-                      sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
-                      sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
-                      
-                      # Setup auto-renewal
-                      echo "🔄 Setting up auto-renewal..."
-                      (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --nginx --quiet --post-hook 'docker restart nginx-proxy'") | crontab - 2>/dev/null || true
-                      
-                      echo "✅ Let's Encrypt certificate configured with auto-renewal"
-                    else
-                      echo "⚠️ Let's Encrypt certificate file not found, using self-signed fallback"
-                      # Fallback to self-signed
-                      sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-                        -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
-                    fi
-                  else
-                    echo "⚠️ Let's Encrypt failed (timeout or validation error), using self-signed fallback"
-                    # Fallback to self-signed
-                    sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-                      -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
-                  fi
-                else
-                  echo "⚠️ Port 80 not accessible externally, using self-signed certificate"
-                  # Self-signed fallback
-                  sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-                    -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
-                fi
-              else
-                echo "⚠️ Domain does not resolve, using self-signed certificate"
-                # Self-signed fallback
-                sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-                  -subj "/C=BR/ST=SP/L/SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
-              fi
+            # Update config.yml with environment variables
+            sed -i "s/\$TUNNEL_ID/${{ secrets.CLOUDFLARE_TUNNEL_ID }}/g" cloudflare/config.yml
+            sed -i "s/\$DOMAIN/${{ secrets.CLOUDFLARE_DOMAIN }}/g" cloudflare/config.yml
+            
+            # Copy credentials file if provided
+            if [ -n "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" ]; then
+              echo "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" > /etc/cloudflared/credentials.json
+              chmod 600 /etc/cloudflared/credentials.json
+              echo "✅ Cloudflare credentials configured"
             else
-              echo "🏠 Using self-signed certificate for IP/localhost"
-              # Self-signed for IP/localhost
-              sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-                -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
+              echo "⚠️ Cloudflare credentials not provided - tunnel will need manual authentication"
             fi
             
-            # Set correct permissions
-            sudo chmod 600 ssl/key.pem
-            sudo chmod 644 ssl/cert.pem
-            sudo chown -R $USER:$USER ssl/
+            # Copy config to cloudflared directory
+            cp cloudflare/config.yml /etc/cloudflared/config.yml
+            chmod 644 /etc/cloudflared/config.yml
             
-            echo "✅ SSL certificates configured"
+            echo "✅ Cloudflare Tunnel configuration ready"
 
-      - name: 🌐 Verify Nginx Configuration
+      - name: 🌐 Verify Cloudflare Configuration
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ env.VM_HOST }}
@@ -362,13 +301,13 @@ jobs:
             set -e
             cd ${{ env.VM_PATH }}
             
-            echo "🌐 Verifying Nginx configuration..."
+            echo "🌐 Verifying Cloudflare configuration..."
             
-            # Verify nginx files are present
-            if [ -f "nginx/nginx.conf" ] && [ -f "nginx/Dockerfile" ]; then
-              echo "✅ Nginx configuration files ready"
+            # Verify cloudflare files are present
+            if [ -f "cloudflare/config.yml" ] && [ -f "cloudflare/Dockerfile" ]; then
+              echo "✅ Cloudflare configuration files ready"
             else
-              echo "❌ Nginx configuration files missing"
+              echo "❌ Cloudflare configuration files missing"
               exit 1
             fi
 
@@ -388,8 +327,8 @@ jobs:
             echo "🔨 Building application image..."
             sudo docker build -t portfolio-backend-prod .
             
-            echo "🔨 Building nginx image..."
-            sudo docker build -t nginx-proxy ./nginx
+            echo "🔨 Building Cloudflare Tunnel image..."
+            sudo docker build -t cloudflare-tunnel ./cloudflare
             
             # Create Docker network for communication
             echo "🌐 Creating Docker network..."
@@ -430,73 +369,23 @@ jobs:
               -e SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_BATCH_FETCH_SIZE=16 \
               portfolio-backend-prod
             
-            # Deploy nginx container (without port mapping initially)
-            echo "🌐 Starting nginx container..."
+            # Deploy Cloudflare Tunnel container
+            echo "🌐 Starting Cloudflare Tunnel container..."
             sudo docker run -d \
-            --name ${{ env.NGINX_CONTAINER }} \
-            --network portfolio-network \
-            --memory=32m \
-            --memory-swap=32m \
-            --cpus="0.1" \
-            --restart unless-stopped \
-              -v $(pwd)/ssl:/etc/nginx/ssl:ro \
-              nginx-proxy
+              --name ${{ env.CLOUDFLARE_CONTAINER }} \
+              --network portfolio-network \
+              --memory=64m \
+              --memory-swap=64m \
+              --cpus="0.1" \
+              --restart unless-stopped \
+              -v /etc/cloudflared:/etc/cloudflared:ro \
+              cloudflare-tunnel
             
-            # Wait for nginx to be ready
-            echo "⏳ Waiting for nginx to be ready..."
-            sleep 10
+            # Wait for Cloudflare Tunnel to be ready
+            echo "⏳ Waiting for Cloudflare Tunnel to be ready..."
+            sleep 15
             
-            # Configure nginx as reverse proxy for Let's Encrypt (if needed)
-            echo "🔄 Configuring nginx for Let's Encrypt validation..."
-            
-            # For real domains, ensure nginx can handle Let's Encrypt challenges
-            if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
-              # Create acme-challenge directory
-              sudo mkdir -p /var/www/acme-challenge
-              sudo chown -R $USER:$USER /var/www/acme-challenge
-              
-              # Update nginx config to handle Let's Encrypt challenges
-              sudo docker exec ${{ env.NGINX_CONTAINER }} sh -c '
-                echo "server {
-                  listen 80;
-                  server_name _;
-                  
-                  location /.well-known/acme-challenge/ {
-                    root /var/www/acme-challenge;
-                  }
-                  
-                  location / {
-                    return 301 https://\$host\$request_uri;
-                  }
-                }" > /etc/nginx/conf.d/acme.conf
-              '
-              
-              # Reload nginx config
-              sudo docker exec ${{ env.NGINX_CONTAINER }} nginx -s reload
-              
-              echo "✅ Nginx configured for Let's Encrypt challenges"
-            fi
-            
-            # Now map the ports (nginx is ready)
-            echo "🌐 Mapping nginx ports..."
-            sudo docker stop ${{ env.NGINX_CONTAINER }}
-            sudo docker rm ${{ env.NGINX_CONTAINER }}
-            
-            # Deploy nginx with port mapping
-            sudo docker run -d \
-            --name ${{ env.NGINX_CONTAINER }} \
-            --network portfolio-network \
-            --memory=32m \
-            --memory-swap=32m \
-            --cpus="0.1" \
-            --restart unless-stopped \
-              -p 80:80 \
-              -p 443:443 \
-              -v $(pwd)/ssl:/etc/nginx/ssl:ro \
-              -v /var/www/acme-challenge:/var/www/acme-challenge \
-              nginx-proxy
-            
-            echo "✅ Nginx deployed with SSL certificate and port mapping"
+            echo "✅ Cloudflare Tunnel deployed successfully"
             
             echo "✅ Application deployed successfully"
             
@@ -562,30 +451,27 @@ jobs:
               exit 1
             fi
             
-            # Check nginx container status (simple check)
-            echo "🌐 Checking nginx container status..."
-            NGINX_STATUS=$(sudo docker ps --format "{{.Status}}" --filter "name=${{ env.NGINX_CONTAINER }}" | head -1)
-            if echo "$NGINX_STATUS" | grep -q "Up"; then
-              echo "✅ Nginx container is running"
+            # Check Cloudflare Tunnel container status
+            echo "🌐 Checking Cloudflare Tunnel container status..."
+            CLOUDFLARE_STATUS=$(sudo docker ps --format "{{.Status}}" --filter "name=${{ env.CLOUDFLARE_CONTAINER }}" | head -1)
+            if echo "$CLOUDFLARE_STATUS" | grep -q "Up"; then
+              echo "✅ Cloudflare Tunnel container is running"
             else
-              echo "❌ Nginx container is not running - Status: $NGINX_STATUS"
-              echo "📋 Nginx logs:"
-              sudo docker logs --tail 30 ${{ env.NGINX_CONTAINER }}
+              echo "❌ Cloudflare Tunnel container is not running - Status: $CLOUDFLARE_STATUS"
+              echo "📋 Cloudflare Tunnel logs:"
+              sudo docker logs --tail 30 ${{ env.CLOUDFLARE_CONTAINER }}
               exit 1
             fi
 
-            # Check SSL certificate
-            echo "🔐 Checking SSL certificate..."
-            if [ -f "ssl/cert.pem" ]; then
-              CERT_ISSUER=$(openssl x509 -in ssl/cert.pem -noout -issuer 2>/dev/null | cut -d= -f2- || echo "Unknown")
-              if echo "$CERT_ISSUER" | grep -q "Let's Encrypt"; then
-                echo "✅ Valid Let's Encrypt certificate configured (Production Best Practice 2025)"
-                echo "🔒 Browser will show green lock - No security warnings"
-                echo "🔄 Auto-renewal configured via cron job"
-              else
-                echo "⚠️ Self-signed certificate configured (fallback only)"
-                echo "🔓 Browser will show security warning - Not recommended for production"
-              fi
+            # Check Cloudflare Tunnel configuration
+            echo "🔐 Checking Cloudflare Tunnel configuration..."
+            if [ -f "/etc/cloudflared/config.yml" ]; then
+              echo "✅ Cloudflare Tunnel configuration file found"
+              echo "🔒 SSL/TLS is handled by Cloudflare - No local certificates needed"
+              echo "🌐 Domain routing configured via Cloudflare Dashboard"
+            else
+              echo "❌ Cloudflare Tunnel configuration file not found"
+              exit 1
             fi
             
             # Show memory usage
@@ -595,9 +481,9 @@ jobs:
             echo ""
             echo "🎉 Deployment completed successfully!"
             echo "🌐 Access URLs:"
-            echo "   - HTTP:  http://${{ env.VM_HOST }}/api/actuator/health"
-            echo "   - HTTPS: https://${{ env.VM_HOST }}/api/actuator/health"
-            echo "   - API:   https://${{ env.VM_HOST }}/api/"
+            echo "   - Cloudflare Domain: https://${{ secrets.CLOUDFLARE_DOMAIN }}/api/actuator/health"
+            echo "   - API: https://${{ secrets.CLOUDFLARE_DOMAIN }}/api/"
+            echo "   - Health Check: https://${{ secrets.CLOUDFLARE_DOMAIN }}/api/actuator/health"
             
             # Set success flag for rollback mechanism
             echo "DEPLOYMENT_SUCCESS=true" >> $GITHUB_ENV
@@ -616,8 +502,8 @@ jobs:
             echo "🚨 Deployment failed, attempting rollback..."
             
             # Stop current containers
-            sudo docker stop ${{ env.CONTAINER_NAME }} ${{ env.NGINX_CONTAINER }} 2>/dev/null || true
-            sudo docker rm ${{ env.CONTAINER_NAME }} ${{ env.NGINX_CONTAINER }} 2>/dev/null || true
+            sudo docker stop ${{ env.CONTAINER_NAME }} ${{ env.CLOUDFLARE_CONTAINER }} 2>/dev/null || true
+            sudo docker rm ${{ env.CONTAINER_NAME }} ${{ env.CLOUDFLARE_CONTAINER }} 2>/dev/null || true
             
             # Try to restore previous version if exists
             if [ -f "portfolio-backend-previous.jar" ]; then

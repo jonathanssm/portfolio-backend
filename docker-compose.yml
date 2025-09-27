@@ -16,7 +16,7 @@ services:
       - dev_network
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.6.0
     environment:
       KAFKA_PROCESS_ROLES: "broker,controller"
       KAFKA_NODE_ID: 1
@@ -35,7 +35,7 @@ services:
       - dev_network
 
   kafdrop:
-    image: obsidiandynamics/kafdrop:latest
+    image: obsidiandynamics/kafdrop:4.0.1
     depends_on:
       - kafka
     ports:
