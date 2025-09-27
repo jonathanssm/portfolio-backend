@@ -498,6 +498,32 @@ jobs:
               nginx-proxy
             
             echo "✅ Application deployed successfully"
+            
+            # Try Let's Encrypt again now that nginx is running
+            echo "🔄 Attempting Let's Encrypt with nginx running..."
+            if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
+              # Stop nginx temporarily for Let's Encrypt
+              sudo docker stop ${{ env.NGINX_CONTAINER }} 2>/dev/null || true
+              
+              # Try Let's Encrypt
+              if sudo certbot certonly --standalone --non-interactive --agree-tos \
+                --email "admin@${{ env.VM_HOST }}" \
+                --domains "${{ env.VM_HOST }}" \
+                --expand 2>/dev/null; then
+                
+                if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
+                  sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
+                  sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
+                  echo "✅ Let's Encrypt certificate configured successfully!"
+                  
+                  # Setup auto-renewal
+                  (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet") | crontab - 2>/dev/null || true
+                fi
+              fi
+              
+              # Restart nginx with new certificate
+              sudo docker start ${{ env.NGINX_CONTAINER }}
+            fi
 
       - name: ✅ Verify Deployment
         uses: appleboy/ssh-action@v1.0.0
@@ -513,7 +539,7 @@ jobs:
             
             # Wait for containers to start (Spring Boot needs more time)
             echo "⏳ Waiting for application to fully start..."
-            sleep 60
+            sleep 120
             
             # Check container status
             echo "📋 Container status:"
@@ -521,7 +547,7 @@ jobs:
             
             # Check application health with retry logic
             echo "🔍 Checking application health..."
-            MAX_RETRIES=10
+            MAX_RETRIES=15
             RETRY_COUNT=0
             
             while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
@@ -532,7 +558,7 @@ jobs:
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 echo "⏳ Application not ready yet (attempt $RETRY_COUNT/$MAX_RETRIES)..."
                 if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                  sleep 15
+                  sleep 20
                 fi
               fi
             done
@@ -549,25 +575,35 @@ jobs:
             # Check nginx status with retry logic
             echo "🌐 Checking nginx health..."
             NGINX_RETRY_COUNT=0
-            NGINX_MAX_RETRIES=5
+            NGINX_MAX_RETRIES=10
+            
+            # Wait for nginx to stabilize (it was restarting)
+            echo "⏳ Waiting for nginx to stabilize..."
+            sleep 30
             
             while [ $NGINX_RETRY_COUNT -lt $NGINX_MAX_RETRIES ]; do
-              if sudo docker exec ${{ env.NGINX_CONTAINER }} wget --no-verbose --tries=1 --spider http://localhost/nginx_status >/dev/null 2>&1; then
-                echo "✅ Nginx is healthy"
-                break
-              else
-                NGINX_RETRY_COUNT=$((NGINX_RETRY_COUNT + 1))
-                echo "⏳ Nginx not ready yet (attempt $NGINX_RETRY_COUNT/$NGINX_MAX_RETRIES)..."
-                if [ $NGINX_RETRY_COUNT -lt $NGINX_MAX_RETRIES ]; then
-                  sleep 10
+              # Check if nginx is running (not restarting)
+              NGINX_STATUS=$(sudo docker ps --format "{{.Status}}" --filter "name=${{ env.NGINX_CONTAINER }}" | head -1)
+              if echo "$NGINX_STATUS" | grep -q "Up" && ! echo "$NGINX_STATUS" | grep -q "Restarting"; then
+                if sudo docker exec ${{ env.NGINX_CONTAINER }} wget --no-verbose --tries=1 --spider http://localhost/nginx_status >/dev/null 2>&1; then
+                  echo "✅ Nginx is healthy"
+                  break
                 fi
+              fi
+              
+              NGINX_RETRY_COUNT=$((NGINX_RETRY_COUNT + 1))
+              echo "⏳ Nginx not ready yet (attempt $NGINX_RETRY_COUNT/$NGINX_MAX_RETRIES) - Status: $NGINX_STATUS"
+              if [ $NGINX_RETRY_COUNT -lt $NGINX_MAX_RETRIES ]; then
+                sleep 15
               fi
             done
             
             if [ $NGINX_RETRY_COUNT -eq $NGINX_MAX_RETRIES ]; then
               echo "❌ Nginx health check failed after $NGINX_MAX_RETRIES attempts"
+              echo "📋 Nginx status:"
+              sudo docker ps --filter "name=${{ env.NGINX_CONTAINER }}"
               echo "📋 Nginx logs:"
-              sudo docker logs --tail 20 ${{ env.NGINX_CONTAINER }}
+              sudo docker logs --tail 30 ${{ env.NGINX_CONTAINER }}
               exit 1
             fi
             
