@@ -1,9 +1,0 @@
-tunnel: $TUNNEL_ID
-
-ingress:
-  - hostname: $DOMAIN
-    service: http://portfolio-backend-prod:8080
-    originRequest:
-      httpHostHeader: $DOMAIN
-      noTLSVerify: false
-  - service: http_status:404
