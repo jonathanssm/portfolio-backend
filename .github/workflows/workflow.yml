@@ -276,43 +276,67 @@ jobs:
               sudo apt-get update && sudo apt-get install -y certbot
             fi
             
-            # Try Let's Encrypt for real domains (BEST PRACTICE 2025)
+            # Check if domain is accessible before attempting Let's Encrypt
             if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
-              echo "🌐 Attempting Let's Encrypt certificate (Production Best Practice)..."
+              echo "🌐 Checking domain accessibility for Let's Encrypt..."
               
-              # Stop any service using port 80/443
-              sudo systemctl stop nginx 2>/dev/null || true
-              sudo pkill -f nginx 2>/dev/null || true
-              
-              # Get Let's Encrypt certificate using standalone mode
-              if sudo certbot certonly --standalone --non-interactive --agree-tos \
-                --email "admin@${{ env.VM_HOST }}" \
-                --domains "${{ env.VM_HOST }}" \
-                --expand 2>/dev/null; then
+              # Test if domain resolves and port 80 is accessible
+              if timeout 10 nslookup ${{ env.VM_HOST }} >/dev/null 2>&1; then
+                echo "✅ Domain resolves correctly"
                 
-                if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
-                  echo "✅ Let's Encrypt certificate obtained successfully!"
+                # Test if port 80 is accessible externally
+                if timeout 10 curl -s -I http://${{ env.VM_HOST }} >/dev/null 2>&1; then
+                  echo "✅ Port 80 is accessible externally"
                   
-                  # Copy certificates to ssl directory
-                  sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
-                  sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
+                  # Stop any service using port 80/443
+                  sudo systemctl stop nginx 2>/dev/null || true
+                  sudo pkill -f nginx 2>/dev/null || true
                   
-                  # Setup auto-renewal (BEST PRACTICE 2025)
-                  echo "🔄 Setting up auto-renewal..."
-                  (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --nginx --quiet --post-hook 'docker restart nginx-proxy'") | crontab - 2>/dev/null || true
+                  # Wait a moment for ports to be released
+                  sleep 5
                   
-                  echo "✅ Let's Encrypt certificate configured with auto-renewal"
+                  # Get Let's Encrypt certificate with timeout
+                  echo "🔐 Attempting Let's Encrypt certificate..."
+                  if timeout 300 sudo certbot certonly --standalone --non-interactive --agree-tos \
+                    --email "admin@${{ env.VM_HOST }}" \
+                    --domains "${{ env.VM_HOST }}" \
+                    --expand 2>/dev/null; then
+                    
+                    if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
+                      echo "✅ Let's Encrypt certificate obtained successfully!"
+                      
+                      # Copy certificates to ssl directory
+                      sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
+                      sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
+                      
+                      # Setup auto-renewal
+                      echo "🔄 Setting up auto-renewal..."
+                      (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --nginx --quiet --post-hook 'docker restart nginx-proxy'") | crontab - 2>/dev/null || true
+                      
+                      echo "✅ Let's Encrypt certificate configured with auto-renewal"
+                    else
+                      echo "⚠️ Let's Encrypt certificate file not found, using self-signed fallback"
+                      # Fallback to self-signed
+                      sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
+                        -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
+                    fi
+                  else
+                    echo "⚠️ Let's Encrypt failed (timeout or validation error), using self-signed fallback"
+                    # Fallback to self-signed
+                    sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
+                      -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
+                  fi
                 else
-                  echo "⚠️ Let's Encrypt certificate file not found, creating self-signed fallback"
-                  # Fallback to self-signed
+                  echo "⚠️ Port 80 not accessible externally, using self-signed certificate"
+                  # Self-signed fallback
                   sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
                     -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
                 fi
               else
-                echo "⚠️ Let's Encrypt failed, creating self-signed fallback"
-                # Fallback to self-signed
+                echo "⚠️ Domain does not resolve, using self-signed certificate"
+                # Self-signed fallback
                 sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-                  -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
+                  -subj "/C=BR/ST=SP/L/SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}"
               fi
             else
               echo "🏠 Using self-signed certificate for IP/localhost"
