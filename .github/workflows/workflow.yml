@@ -276,15 +276,8 @@ jobs:
             sed -i "s/\$TUNNEL_ID/${{ secrets.CLOUDFLARE_TUNNEL_ID }}/g" cloudflare/config.yml
             sed -i "s/\$DOMAIN/${{ secrets.CLOUDFLARE_DOMAIN }}/g" cloudflare/config.yml
             
-            # Copy credentials file if provided
-            if [ -n "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" ]; then
-              echo "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" | sudo tee /etc/cloudflared/credentials.json > /dev/null
-              sudo chmod 644 /etc/cloudflared/credentials.json
-              sudo chown root:root /etc/cloudflared/credentials.json
-              echo "✅ Cloudflare credentials configured"
-            else
-              echo "⚠️ Cloudflare credentials not provided - tunnel will need manual authentication"
-            fi
+            # Cloudflare Tunnel will use token authentication
+            echo "✅ Cloudflare Tunnel will use token authentication"
             
             # Copy config to cloudflared directory
             sudo cp cloudflare/config.yml /etc/cloudflared/config.yml
@@ -382,6 +375,7 @@ jobs:
               --restart unless-stopped \
               --user root \
               -v /etc/cloudflared:/etc/cloudflared:ro \
+              -e TUNNEL_TOKEN="${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}" \
               cloudflare-tunnel
             
             # Wait for Cloudflare Tunnel to be ready
