@@ -241,6 +241,17 @@ jobs:
             echo "🧹 Cleaning up old containers and images..."
             sudo docker system prune -af --filter "until=24h" || true
             sudo docker volume prune -f || true
+            
+            # 🔥 Limpeza agressiva para garantir configuração nova
+            echo "🔥 Forçando limpeza completa de containers nginx..."
+            sudo docker stop nginx-proxy 2>/dev/null || true
+            sudo docker rm nginx-proxy 2>/dev/null || true
+            sudo docker rmi nginx-proxy 2>/dev/null || true
+            
+            # Limpar volumes específicos do nginx se existirem
+            sudo docker volume ls | grep nginx | awk '{print $2}' | xargs -r sudo docker volume rm || true
+            
+            echo "✅ Limpeza completa realizada"
 
             # 🔐 Configura certificados SSL
             echo "🔐 Setting up SSL certificates..."
@@ -414,14 +425,51 @@ jobs:
               if [ -f "nginx/Dockerfile" ] && [ -f "nginx/nginx.conf" ]; then
                 echo "✅ Nginx files downloaded successfully"
                 ls -la nginx/
+                
+                # Debug: Verificar conteúdo do nginx.conf baixado
+                echo "🔍 Verificando configuração do nginx.conf baixado:"
+                grep -n "upstream.*backend" nginx/nginx.conf || echo "Nenhum upstream backend encontrado"
+                grep -n "portfolio-backend" nginx/nginx.conf || echo "Nenhuma referência portfolio-backend encontrada"
               else
                 echo "❌ Failed to download nginx files"
                 exit 1
               fi
             fi
             
-            sudo docker build -t $IMAGE_NAME .
-            sudo docker build -t nginx-proxy ./nginx
+            # Verificar configuração do nginx antes do build
+            echo "🔍 Verificando configuração final do nginx.conf:"
+            if [ -f "nginx/nginx.conf" ]; then
+              echo "📋 Upstreams encontrados:"
+              grep -n "upstream.*backend" nginx/nginx.conf || echo "❌ Nenhum upstream backend encontrado!"
+              
+              echo "📋 Referências portfolio-backend:"
+              grep -n "portfolio-backend" nginx/nginx.conf || echo "❌ Nenhuma referência portfolio-backend encontrada!"
+              
+              # Verificar se há referências incorretas
+              if grep -q "portfolio-backend:8080" nginx/nginx.conf; then
+                echo "❌ ERRO: Encontrada referência incorreta 'portfolio-backend:8080'!"
+                echo "🔧 Corrigindo automaticamente..."
+                sed -i 's/portfolio-backend:8080/portfolio-backend-prod:8080/g' nginx/nginx.conf
+                echo "✅ Referência corrigida"
+              fi
+              
+              if grep -q "portfolio-backend:8081" nginx/nginx.conf; then
+                echo "❌ ERRO: Encontrada referência incorreta 'portfolio-backend:8081'!"
+                echo "🔧 Corrigindo automaticamente..."
+                sed -i 's/portfolio-backend:8081/portfolio-backend-staging:8081/g' nginx/nginx.conf
+                echo "✅ Referência corrigida"
+              fi
+            else
+              echo "❌ ERRO: nginx.conf não encontrado!"
+              exit 1
+            fi
+            
+            # Build sem cache para garantir configuração nova
+            echo "🔨 Building backend image (no cache)..."
+            sudo docker build --no-cache -t $IMAGE_NAME .
+            
+            echo "🔨 Building nginx image (no cache)..."
+            sudo docker build --no-cache -t nginx-proxy ./nginx
 
             # 🔄 Deploy inteligente - Produção nunca para desnecessariamente
             echo "🔄 Performing smart deployment for $ENV"
@@ -439,10 +487,8 @@ jobs:
             sudo docker rm $CONTAINER_NAME 2>/dev/null || true
             fi
             
-            # Nginx sempre é recriado para garantir configuração correta
-            echo "🌐 Updating nginx configuration..."
-            sudo docker stop nginx-proxy 2>/dev/null || true
-            sudo docker rm nginx-proxy 2>/dev/null || true
+            # Nginx já foi limpo anteriormente, apenas confirmar
+            echo "🌐 Nginx configuration ready (already cleaned)"
 
             # 🚀 Executa containers com limites de memória
             echo "🎯 Starting containers with memory limits..."
@@ -504,6 +550,14 @@ jobs:
             echo "📋 Container status:"
             sudo docker ps --filter "name=$CONTAINER_NAME" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             sudo docker ps --filter "name=nginx-proxy" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            
+            # Debug: Verificar todos os containers ativos
+            echo "🔍 Todos os containers ativos:"
+            sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            
+            # Debug: Verificar se container backend está acessível
+            echo "🔍 Verificando conectividade do container backend:"
+            sudo docker exec $CONTAINER_NAME curl -f http://localhost:8080/actuator/health || echo "Backend container não está respondendo"
 
             echo "📊 Memory usage:"
             sudo docker stats $CONTAINER_NAME --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}" || true
