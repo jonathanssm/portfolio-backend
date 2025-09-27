@@ -288,160 +288,7 @@ jobs:
             # Create nginx directory if not exists
               mkdir -p nginx
               
-            # Download nginx files from repository
-            echo "📥 Downloading nginx configuration..."
-              curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Accept: application/vnd.github.v3.raw" \
-                -o nginx/Dockerfile \
-              "https://api.github.com/repos/${{ github.repository }}/contents/nginx/Dockerfile?ref=main"
-              
-              curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                -H "Accept: application/vnd.github.v3.raw" \
-                -o nginx/nginx.conf \
-              "https://api.github.com/repos/${{ github.repository }}/contents/nginx/nginx.conf?ref=main"
-            
-            # Simplify nginx.conf for single production environment
-            echo "🔧 Simplifying nginx configuration for production..."
-            
-            # Create a clean production-only nginx.conf using echo
-            echo "user nginx;" > nginx/nginx.conf
-            echo "worker_processes auto;" >> nginx/nginx.conf
-            echo "error_log /var/log/nginx/error.log notice;" >> nginx/nginx.conf
-            echo "pid /var/run/nginx.pid;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "events {" >> nginx/nginx.conf
-            echo "    worker_connections 1024;" >> nginx/nginx.conf
-            echo "    use epoll;" >> nginx/nginx.conf
-            echo "    multi_accept on;" >> nginx/nginx.conf
-            echo "}" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "http {" >> nginx/nginx.conf
-            echo "    include /etc/nginx/mime.types;" >> nginx/nginx.conf
-            echo "    default_type application/octet-stream;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "    # Logging" >> nginx/nginx.conf
-            echo "    log_format main '\$remote_addr - \$remote_user [\$time_local] \"\$request\" '" >> nginx/nginx.conf
-            echo "                    '\$status \$body_bytes_sent \"\$http_referer\" '" >> nginx/nginx.conf
-            echo "                    '\"\$http_user_agent\" \"\$http_x_forwarded_for\"';" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "    access_log /var/log/nginx/access.log main;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "    # Performance" >> nginx/nginx.conf
-            echo "    sendfile on;" >> nginx/nginx.conf
-            echo "    tcp_nopush on;" >> nginx/nginx.conf
-            echo "    tcp_nodelay on;" >> nginx/nginx.conf
-            echo "    keepalive_timeout 65;" >> nginx/nginx.conf
-            echo "    types_hash_max_size 2048;" >> nginx/nginx.conf
-            echo "    client_max_body_size 10M;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "    # Gzip compression" >> nginx/nginx.conf
-            echo "    gzip on;" >> nginx/nginx.conf
-            echo "    gzip_vary on;" >> nginx/nginx.conf
-            echo "    gzip_min_length 1024;" >> nginx/nginx.conf
-            echo "    gzip_proxied any;" >> nginx/nginx.conf
-            echo "    gzip_comp_level 6;" >> nginx/nginx.conf
-            echo "    gzip_types" >> nginx/nginx.conf
-            echo "        text/plain" >> nginx/nginx.conf
-            echo "        text/css" >> nginx/nginx.conf
-            echo "        text/xml" >> nginx/nginx.conf
-            echo "        text/javascript" >> nginx/nginx.conf
-            echo "        application/json" >> nginx/nginx.conf
-            echo "        application/javascript" >> nginx/nginx.conf
-            echo "        application/xml+rss" >> nginx/nginx.conf
-            echo "        application/atom+xml" >> nginx/nginx.conf
-            echo "        image/svg+xml;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "    # Rate limiting" >> nginx/nginx.conf
-            echo "    limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;" >> nginx/nginx.conf
-            echo "    limit_req_zone \$binary_remote_addr zone=login:10m rate=1r/s;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "    # Upstream backend - Production only" >> nginx/nginx.conf
-            echo "    upstream backend_prod {" >> nginx/nginx.conf
-            echo "        server portfolio-backend-prod:8080;" >> nginx/nginx.conf
-            echo "        keepalive 32;" >> nginx/nginx.conf
-            echo "    }" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "    # HTTP to HTTPS redirect" >> nginx/nginx.conf
-            echo "    server {" >> nginx/nginx.conf
-            echo "        listen 80;" >> nginx/nginx.conf
-            echo "        server_name _;" >> nginx/nginx.conf
-            echo "        return 301 https://\$host\$request_uri;" >> nginx/nginx.conf
-            echo "    }" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "    # HTTPS Production Server" >> nginx/nginx.conf
-            echo "    server {" >> nginx/nginx.conf
-            echo "        listen 443 ssl;" >> nginx/nginx.conf
-            echo "        http2 on;" >> nginx/nginx.conf
-            echo "        server_name _;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "        # SSL configuration" >> nginx/nginx.conf
-            echo "        ssl_certificate /etc/nginx/ssl/cert.pem;" >> nginx/nginx.conf
-            echo "        ssl_certificate_key /etc/nginx/ssl/key.pem;" >> nginx/nginx.conf
-            echo "        ssl_protocols TLSv1.2 TLSv1.3;" >> nginx/nginx.conf
-            echo "        ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;" >> nginx/nginx.conf
-            echo "        ssl_prefer_server_ciphers off;" >> nginx/nginx.conf
-            echo "        ssl_session_cache shared:SSL:10m;" >> nginx/nginx.conf
-            echo "        ssl_session_timeout 10m;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "        # Security headers" >> nginx/nginx.conf
-            echo "        add_header X-Frame-Options DENY;" >> nginx/nginx.conf
-            echo "        add_header X-Content-Type-Options nosniff;" >> nginx/nginx.conf
-            echo "        add_header X-XSS-Protection \"1; mode=block\";" >> nginx/nginx.conf
-            echo "        add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "        # API routes" >> nginx/nginx.conf
-            echo "        location /api/ {" >> nginx/nginx.conf
-            echo "            limit_req zone=api burst=20 nodelay;" >> nginx/nginx.conf
-            echo "            proxy_pass http://backend_prod;" >> nginx/nginx.conf
-            echo "            proxy_http_version 1.1;" >> nginx/nginx.conf
-            echo "            proxy_set_header Upgrade \$http_upgrade;" >> nginx/nginx.conf
-            echo "            proxy_set_header Connection 'upgrade';" >> nginx/nginx.conf
-            echo "            proxy_set_header Host \$host;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Real-IP \$remote_addr;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Forwarded-Proto \$scheme;" >> nginx/nginx.conf
-            echo "            proxy_cache_bypass \$http_upgrade;" >> nginx/nginx.conf
-            echo "            proxy_read_timeout 300s;" >> nginx/nginx.conf
-            echo "            proxy_connect_timeout 75s;" >> nginx/nginx.conf
-            echo "        }" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "        # Health check" >> nginx/nginx.conf
-            echo "        location /api/actuator/health {" >> nginx/nginx.conf
-            echo "            proxy_pass http://backend_prod;" >> nginx/nginx.conf
-            echo "            proxy_http_version 1.1;" >> nginx/nginx.conf
-            echo "            proxy_set_header Host \$host;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Real-IP \$remote_addr;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Forwarded-Proto \$scheme;" >> nginx/nginx.conf
-            echo "            access_log off;" >> nginx/nginx.conf
-            echo "        }" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "        # Root and other routes" >> nginx/nginx.conf
-            echo "        location / {" >> nginx/nginx.conf
-            echo "            proxy_pass http://backend_prod;" >> nginx/nginx.conf
-            echo "            proxy_http_version 1.1;" >> nginx/nginx.conf
-            echo "            proxy_set_header Host \$host;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Real-IP \$remote_addr;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> nginx/nginx.conf
-            echo "            proxy_set_header X-Forwarded-Proto \$scheme;" >> nginx/nginx.conf
-            echo "            proxy_read_timeout 300s;" >> nginx/nginx.conf
-            echo "            proxy_connect_timeout 75s;" >> nginx/nginx.conf
-            echo "        }" >> nginx/nginx.conf
-            echo "" >> nginx/nginx.conf
-            echo "        # Nginx status for monitoring" >> nginx/nginx.conf
-            echo "        location /nginx_status {" >> nginx/nginx.conf
-            echo "            stub_status on;" >> nginx/nginx.conf
-            echo "            access_log off;" >> nginx/nginx.conf
-            echo "            allow 127.0.0.1;" >> nginx/nginx.conf
-            echo "            allow 172.16.0.0/12;" >> nginx/nginx.conf
-            echo "            allow 192.168.0.0/16;" >> nginx/nginx.conf
-            echo "            allow 10.0.0.0/8;" >> nginx/nginx.conf
-            echo "            deny all;" >> nginx/nginx.conf
-            echo "        }" >> nginx/nginx.conf
-            echo "    }" >> nginx/nginx.conf
-            echo "}" >> nginx/nginx.conf
-            
-            echo "✅ Nginx configuration ready"
+            echo "✅ Nginx configuration files ready (using static files)"
 
       - name: 🏗️ Build and Deploy Application
         uses: appleboy/ssh-action@v1.0.0
@@ -471,16 +318,16 @@ jobs:
             sudo docker run -d \
               --name ${{ env.CONTAINER_NAME }} \
               --network portfolio-network \
-              --memory=600m \
-              --memory-swap=600m \
-              --cpus="0.6" \
+              --memory=450m \
+              --memory-swap=450m \
+              --cpus="0.5" \
               --restart unless-stopped \
               --health-cmd="curl -f http://localhost:8080/api/actuator/health || exit 1" \
               --health-interval=60s \
               --health-timeout=30s \
               --health-retries=5 \
               --health-start-period=120s \
-              -e JAVA_OPTS="-Xms128m -Xmx480m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops -XX:+UseContainerSupport" \
+              -e JAVA_OPTS="-Xms128m -Xmx350m -XX:+UseSerialGC -XX:+UseCompressedOops -XX:+UseContainerSupport -XX:MaxRAMPercentage=75" \
               -e SPRING_PROFILES_ACTIVE=production \
               -e SPRING_DATASOURCE_URL="${{ secrets.SPRING_DATASOURCE_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.SPRING_DATASOURCE_USERNAME }}" \
@@ -490,65 +337,118 @@ jobs:
               -e SPRING_JPA_HIBERNATE_SHOW_SQL=false \
               -e LOGGING_LEVEL_ORG_HIBERNATE=ERROR \
               -e LOGGING_LEVEL_ORG_SPRINGFRAMEWORK=WARN \
+              -e SPRING_JPA_PROPERTIES_HIBERNATE_JDBC_BATCH_SIZE=10 \
+              -e SPRING_JPA_PROPERTIES_HIBERNATE_ORDER_INSERTS=true \
+              -e SPRING_JPA_PROPERTIES_HIBERNATE_ORDER_UPDATES=true \
+              -e SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3 \
+              -e SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE=1 \
+              -e SPRING_MAIN_LAZY_INITIALIZATION=true \
+              -e SPRING_JPA_OPEN_IN_VIEW=false \
+              -e SPRING_JPA_PROPERTIES_HIBERNATE_ENABLE_LAZY_LOAD_NO_TRANS=true \
+              -e SPRING_JPA_PROPERTIES_HIBERNATE_DEFAULT_BATCH_FETCH_SIZE=16 \
               portfolio-backend-prod
             
-            # Deploy nginx container
-              echo "🌐 Starting nginx container..."
+            # Deploy nginx container with temporary HTTP-only config
+            echo "🌐 Starting nginx container (temporary HTTP config)..."
+            sudo docker run -d \
+            --name ${{ env.NGINX_CONTAINER }} \
+            --network portfolio-network \
+            --memory=32m \
+            --memory-swap=32m \
+            --cpus="0.1" \
+            --restart unless-stopped \
+              -p 80:80 \
+              -p 443:443 \
+              -v $(pwd)/ssl:/etc/nginx/ssl:ro \
+              -v $(pwd)/nginx/nginx-http.conf:/etc/nginx/nginx.conf \
+              --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || curl -f http://localhost/nginx_status || exit 1" \
+              --health-interval=30s \
+              --health-timeout=5s \
+              --health-retries=3 \
+              nginx-proxy
+            
+            # Wait for nginx to be ready
+            echo "⏳ Waiting for nginx to be ready..."
+            sleep 10
+            
+            # Try Let's Encrypt with nginx plugin (BEST PRACTICE)
+            echo "🔄 Attempting Let's Encrypt certificate with nginx plugin..."
+            if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
+              # Install certbot with nginx plugin
+              sudo apt-get update && sudo apt-get install -y certbot python3-certbot-nginx
+              
+              # Use nginx plugin (BEST PRACTICE)
+              if sudo certbot --nginx --non-interactive --agree-tos \
+                --email "admin@${{ env.VM_HOST }}" \
+                --domains "${{ env.VM_HOST }}" \
+                --redirect 2>/dev/null; then
+                
+                echo "✅ Let's Encrypt certificate configured successfully with nginx plugin!"
+                
+                # Restart nginx to apply SSL configuration
+                echo "🔄 Restarting nginx with SSL configuration..."
+                sudo docker restart ${{ env.NGINX_CONTAINER }}
+                
+                # Update health check to use HTTPS
+                sudo docker update --health-cmd="wget --no-verbose --tries=1 --spider https://localhost/nginx_status --no-check-certificate || curl -f https://localhost/nginx_status -k || exit 1" ${{ env.NGINX_CONTAINER }}
+              else
+                echo "⚠️ Let's Encrypt failed, using self-signed certificate"
+                # Fallback to HTTPS config with self-signed
+                sudo docker stop ${{ env.NGINX_CONTAINER }}
+                sudo docker rm ${{ env.NGINX_CONTAINER }}
+                sudo docker run -d \
+                --name ${{ env.NGINX_CONTAINER }} \
+                --network portfolio-network \
+              --memory=32m \
+              --memory-swap=32m \
+              --cpus="0.1" \
+                --restart unless-stopped \
+                  -p 80:80 \
+                  -p 443:443 \
+                  -v $(pwd)/ssl:/etc/nginx/ssl:ro \
+                  --health-cmd="wget --no-verbose --tries=1 --spider https://localhost/nginx_status --no-check-certificate || curl -f https://localhost/nginx_status -k || exit 1" \
+                  --health-interval=30s \
+                  --health-timeout=5s \
+                  --health-retries=3 \
+                  nginx-proxy
+              fi
+            else
+              echo "🏠 Using self-signed certificate for IP/localhost"
+              # Use HTTPS config with self-signed
+              sudo docker stop ${{ env.NGINX_CONTAINER }}
+              sudo docker rm ${{ env.NGINX_CONTAINER }}
               sudo docker run -d \
               --name ${{ env.NGINX_CONTAINER }} \
               --network portfolio-network \
-              --memory=40m \
-              --memory-swap=40m \
+              --memory=32m \
+              --memory-swap=32m \
               --cpus="0.1" \
               --restart unless-stopped \
                 -p 80:80 \
                 -p 443:443 \
                 -v $(pwd)/ssl:/etc/nginx/ssl:ro \
-                --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || curl -f http://localhost/nginx_status || exit 1" \
+                --health-cmd="wget --no-verbose --tries=1 --spider https://localhost/nginx_status --no-check-certificate || curl -f https://localhost/nginx_status -k || exit 1" \
                 --health-interval=30s \
                 --health-timeout=5s \
                 --health-retries=3 \
                 nginx-proxy
+            fi
             
             echo "✅ Application deployed successfully"
             
-            # Try Let's Encrypt with proper port management
-            echo "🔄 Attempting Let's Encrypt certificate..."
-            if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
-              # Check if port 80 is free
-              if ! sudo lsof -i :80 >/dev/null 2>&1; then
-                echo "✅ Port 80 is free, attempting Let's Encrypt..."
-                
-                # Try Let's Encrypt
-                if sudo certbot certonly --standalone --non-interactive --agree-tos \
-                  --email "admin@${{ env.VM_HOST }}" \
-                  --domains "${{ env.VM_HOST }}" \
-                  --expand 2>/dev/null; then
-                  
-                  if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
-                    sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
-                    sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
-                    echo "✅ Let's Encrypt certificate configured successfully!"
-                    
-                    # Setup auto-renewal
-                    (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet") | crontab - 2>/dev/null || true
-                    
-                    # Restart nginx to use new certificate
-                    echo "🔄 Restarting nginx with Let's Encrypt certificate..."
-                    sudo docker restart nginx-proxy
-                  fi
-                else
-                  echo "⚠️ Let's Encrypt failed - check DNS propagation and firewall"
-                fi
-              else
-                echo "⚠️ Port 80 is occupied - Let's Encrypt skipped"
-                echo "🔧 To get valid certificate:"
-                echo "   1. Stop nginx: sudo docker stop nginx-proxy"
-                echo "   2. Run: sudo certbot certonly --standalone -d ${{ env.VM_HOST }}"
-                echo "   3. Start nginx: sudo docker start nginx-proxy"
-              fi
+            # Show memory usage for monitoring
+            echo "📊 Memory usage after deployment:"
+            sudo docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
+            
+            # Check if we're within memory limits
+            TOTAL_MEMORY=$(free -m | awk 'NR==2{printf "%.0f", $2}')
+            USED_MEMORY=$(free -m | awk 'NR==2{printf "%.0f", $3}')
+            MEMORY_PERCENT=$((USED_MEMORY * 100 / TOTAL_MEMORY))
+            
+            if [ $MEMORY_PERCENT -gt 90 ]; then
+              echo "⚠️ WARNING: Memory usage is ${MEMORY_PERCENT}% - consider upgrading VM"
             else
-              echo "🏠 Using self-signed certificate for IP/localhost"
+              echo "✅ Memory usage is ${MEMORY_PERCENT}% - within acceptable limits"
             fi
 
       - name: ✅ Verify Deployment
