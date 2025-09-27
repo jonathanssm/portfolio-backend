@@ -12,8 +12,7 @@ on:
       - develop
 
 concurrency:
-  group: backend-deploy-${{ github.ref }} # não cancela se for branch diferente
-  #group: backend-deploy # cancela para qualquer branch
+  group: backend-deploy-${{ github.ref_name }}
   cancel-in-progress: true
 
 env:
@@ -24,9 +23,48 @@ env:
   JAR_NAME: portfolio-backend-0.0.1-SNAPSHOT.jar
 
 jobs:
+  # 🔍 Validação e testes (sempre executa)
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java and Cache
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Validate code quality
+        run: |
+          chmod +x ./mvnw
+          ./mvnw -B clean compile test -T 1C
+          
+          # Verificar se build passou
+          if [ $? -eq 0 ]; then
+            echo "✅ Build e testes passaram com sucesso"
+          else
+            echo "❌ Build ou testes falharam"
+            exit 1
+          fi
+
+      - name: Check for security vulnerabilities
+        run: |
+          # Verificar dependências vulneráveis
+          ./mvnw org.owasp:dependency-check-maven:check || echo "⚠️ Dependency check falhou, mas continuando..."
+
+  # 🚀 Deploy apenas em push (não em PR)
   deploy:
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Só executa em push, não em PR
+    if: github.event_name == 'push'
 
     steps:
       - name: Checkout repository
@@ -137,32 +175,28 @@ jobs:
             # Estratégia: Staging + Produção sempre ativos (sem preview)
             # Produção: 450MB, Staging: 350MB, Nginx: 50MB, Sistema: 100MB, Buffer: 50MB
             
-            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-              echo "🚫 Pull requests não são suportados - apenas staging e produção"
-              exit 0
-            else
-              BRANCH="${GITHUB_REF#refs/heads/}"
-              case "$BRANCH" in
-                "main")
-                  ENV="prod"
-                  PORT="8080"
-                  MEMORY_LIMIT="450m"  # 450MB para produção (sempre ativa)
-                  JAVA_OPTS="-Xms64m -Xmx360m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops"
-                  IS_TEMPORARY=false
-                  ;;
-                "develop")
-                  ENV="staging"
-                  PORT="8081"
-                  MEMORY_LIMIT="350m"  # 350MB para staging (sempre ativo)
-                  JAVA_OPTS="-Xms48m -Xmx280m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops"
-                  IS_TEMPORARY=false
-                  ;;
-                *)
-                  echo "🚫 Push detected on unsupported branch '$BRANCH'. Skipping deploy."
-                  exit 0
-                  ;;
-              esac
-            fi
+            # Deploy sempre executa (job só roda em push)
+            BRANCH="${GITHUB_REF#refs/heads/}"
+            case "$BRANCH" in
+              "main")
+                ENV="prod"
+                PORT="8080"
+                MEMORY_LIMIT="450m"  # 450MB para produção (sempre ativa)
+                JAVA_OPTS="-Xms64m -Xmx360m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops"
+                IS_TEMPORARY=false
+                ;;
+              "develop")
+                ENV="staging"
+                PORT="8081"
+                MEMORY_LIMIT="350m"  # 350MB para staging (sempre ativo)
+                JAVA_OPTS="-Xms48m -Xmx280m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops"
+                IS_TEMPORARY=false
+                ;;
+              *)
+                echo "🚫 Push detected on unsupported branch '$BRANCH'. Skipping deploy."
+                exit 0
+                ;;
+            esac
 
             IMAGE_NAME="portfolio-backend-$ENV"
             CONTAINER_NAME="portfolio-backend-$ENV"
@@ -210,14 +244,15 @@ jobs:
             echo "🔐 Setting up SSL certificates..."
             mkdir -p ssl
             
-            # Verificar se é domínio real ou IP/localhost
-            if [[ "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [ "${{ env.VM_HOST }}" = "localhost" ] || [ "${{ env.VM_HOST }}" = "127.0.0.1" ]; then
-              echo "🏠 Usando certificados auto-assinados para IP/localhost: ${{ env.VM_HOST }}"
-              sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
-                -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
-                -addext "subjectAltName=DNS:${{ env.VM_HOST }},IP:${{ env.VM_HOST }}"
-            else
-              echo "🌐 Configurando certificados Let's Encrypt para ${{ env.VM_HOST }}"
+            # SEMPRE criar certificado auto-assinado primeiro (para garantir que nginx suba)
+            echo "🏠 Criando certificado auto-assinado temporário..."
+            sudo openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3650 -nodes \
+              -subj "/C=BR/ST=SP/L=SaoPaulo/O=Portfolio/OU=IT/CN=${{ env.VM_HOST }}" \
+              -addext "subjectAltName=DNS:${{ env.VM_HOST }},IP:${{ env.VM_HOST }}"
+            
+            # Verificar se é domínio real para tentar Let's Encrypt
+            if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
+              echo "🌐 Tentando configurar certificados Let's Encrypt para ${{ env.VM_HOST }}"
               
               # Aguarda liberação do lock do apt
               echo "⏳ Aguardando liberação do lock do apt..."
@@ -226,44 +261,66 @@ jobs:
                 sleep 5
               done
               
-              # Instalar certbot
-              sudo apt-get update
-              sudo apt-get install -y certbot
-              
-              # Verificar se certbot foi instalado
+              # Instalar certbot se não estiver instalado
               if ! command -v certbot &> /dev/null; then
-                echo "❌ Falha ao instalar certbot em produção - ABORTANDO DEPLOY"
-                echo "❌ Produção deve ter apenas certificados válidos do Let's Encrypt"
-                exit 1
-              fi
-              
-              echo "✅ Certbot instalado com sucesso"
-              
-              # Gerar certificado Let's Encrypt apenas para domínios existentes
-              sudo certbot certonly \
-                --standalone \
-                --non-interactive \
-                --agree-tos \
-                --email "${{ secrets.SSL_EMAIL || format('admin@{0}', env.VM_HOST) }}" \
-                --domains "${{ env.VM_HOST }},staging.jonathanssm.com" \
-                --expand
-              
-              # Verificar se certificados foram gerados
-              if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
-                sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
-                sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
-                echo "✅ Certificados Let's Encrypt configurados"
+                echo "📦 Instalando certbot..."
+                sudo apt-get update
+                sudo apt-get install -y certbot
                 
-                # Configurar renovação automática
-                echo "⏰ Configurando renovação automática..."
-                chmod +x scripts/ssl-renew.sh
-                chmod +x scripts/setup-ssl-cron.sh
-                ./scripts/setup-ssl-cron.sh "${{ env.VM_HOST }}"
+                if ! command -v certbot &> /dev/null; then
+                  echo "⚠️ Falha ao instalar certbot - continuando com certificado auto-assinado"
+                  echo "🔧 Para certificados válidos, instale manualmente: sudo apt-get install certbot"
+                else
+                  echo "✅ Certbot instalado com sucesso"
+                fi
               else
-                echo "❌ Falha ao gerar certificados Let's Encrypt em produção - ABORTANDO DEPLOY"
-                echo "❌ Produção deve ter apenas certificados válidos"
-                exit 1
+                echo "✅ Certbot já está instalado"
               fi
+              
+              # Tentar gerar certificado Let's Encrypt se certbot estiver disponível
+              if command -v certbot &> /dev/null; then
+                echo "🔐 Tentando gerar certificado Let's Encrypt..."
+                
+                # Verificar se porta 80 está livre
+                if ! sudo lsof -i :80 >/dev/null 2>&1; then
+                  echo "✅ Porta 80 está livre, tentando Let's Encrypt..."
+                  
+                  sudo certbot certonly \
+                    --standalone \
+                    --non-interactive \
+                    --agree-tos \
+                    --email "${{ secrets.SSL_EMAIL || format('admin@{0}', env.VM_HOST) }}" \
+                    --domains "${{ env.VM_HOST }},staging.jonathanssm.com" \
+                    --expand || {
+                    echo "⚠️ Falha no Let's Encrypt - usando certificado auto-assinado"
+                    echo "🔧 Para certificados válidos:"
+                    echo "   1. Verificar se DNS está propagado"
+                    echo "   2. Verificar se domínio aponta para este IP"
+                    echo "   3. Aguardar propagação DNS (até 24h)"
+                  }
+                  
+                  # Verificar se certificados foram gerados
+                  if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
+                    sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
+                    sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
+                    echo "✅ Certificados Let's Encrypt configurados com sucesso!"
+                    
+                    # Configurar renovação automática via cron
+                    echo "⏰ Configurando renovação automática..."
+                    (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet --nginx") | crontab - 2>/dev/null || true
+                    echo "✅ Renovação automática configurada"
+                  else
+                    echo "⚠️ Let's Encrypt falhou - usando certificado auto-assinado"
+                  fi
+                else
+                  echo "⚠️ Porta 80 em uso - usando certificado auto-assinado"
+                  echo "🔧 Para Let's Encrypt, pare o serviço na porta 80 temporariamente"
+                fi
+              else
+                echo "⚠️ Certbot não disponível - usando certificado auto-assinado"
+              fi
+            else
+              echo "🏠 Usando certificado auto-assinado para IP/localhost: ${{ env.VM_HOST }}"
             fi
             
             # Define permissões corretas
@@ -272,6 +329,31 @@ jobs:
             sudo chown -R $USER:$USER ssl/
             
             echo "✅ SSL certificates configured successfully"
+            
+            # 🔍 Verificar qual tipo de certificado está sendo usado
+            echo "🔍 Verificando tipo de certificado configurado..."
+            if [ -f "ssl/cert.pem" ]; then
+              CERT_SUBJECT=$(openssl x509 -in ssl/cert.pem -noout -subject 2>/dev/null || echo "Erro ao ler certificado")
+              CERT_ISSUER=$(openssl x509 -in ssl/cert.pem -noout -issuer 2>/dev/null || echo "Erro ao ler issuer")
+              
+              echo "📋 Informações do certificado:"
+              echo "   Subject: $CERT_SUBJECT"
+              echo "   Issuer: $CERT_ISSUER"
+              
+              # Verificar se é Let's Encrypt ou auto-assinado
+              if echo "$CERT_ISSUER" | grep -q "Let's Encrypt"; then
+                echo "✅ CERTIFICADO VÁLIDO (Let's Encrypt) configurado!"
+                echo "🔒 HTTPS seguro e confiável"
+              elif echo "$CERT_ISSUER" | grep -q "Portfolio"; then
+                echo "⚠️ CERTIFICADO AUTO-ASSINADO configurado"
+                echo "🔓 HTTPS funciona mas navegador mostrará aviso de segurança"
+                echo "🔧 Para certificado válido: aguarde propagação DNS ou configure manualmente"
+              else
+                echo "❓ Certificado com issuer desconhecido: $CERT_ISSUER"
+              fi
+            else
+              echo "❌ Nenhum certificado encontrado em ssl/cert.pem"
+            fi
 
             # 🏗️ Build das imagens
             echo "🔨 Building Docker images..."
@@ -429,6 +511,25 @@ jobs:
               echo "   - HTTP:  http://${{ env.VM_HOST }}/actuator/health"
               echo "   - HTTPS: https://${{ env.VM_HOST }}/actuator/health"
               echo "   - API:   https://${{ env.VM_HOST }}/api/"
+              
+              # 🔍 Verificação final do certificado em uso
+              echo "🔍 Verificação final do certificado SSL:"
+              if [ -f "ssl/cert.pem" ]; then
+                CERT_ISSUER=$(openssl x509 -in ssl/cert.pem -noout -issuer 2>/dev/null | cut -d= -f2- || echo "Erro ao ler issuer")
+                if echo "$CERT_ISSUER" | grep -q "Let's Encrypt"; then
+                  echo "✅ CERTIFICADO VÁLIDO (Let's Encrypt) - HTTPS seguro!"
+                  echo "🔒 Navegador mostrará cadeado verde"
+                else
+                  echo "⚠️ CERTIFICADO AUTO-ASSINADO - HTTPS com aviso"
+                  echo "🔓 Navegador mostrará aviso de segurança"
+                fi
+              fi
+              
+              echo ""
+              echo "📋 Como verificar no navegador:"
+              echo "   1. Acesse: https://${{ env.VM_HOST }}"
+              echo "   2. Cadeado verde = Certificado válido"
+              echo "   3. Cadeado com aviso = Certificado auto-assinado"
             
               # 📝 Logs iniciais para debug
               echo "📋 Application logs (last 10 lines):"
