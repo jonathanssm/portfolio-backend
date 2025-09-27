@@ -402,7 +402,7 @@ jobs:
             echo "        }" >> nginx/nginx.conf
             echo "" >> nginx/nginx.conf
             echo "        # Health check" >> nginx/nginx.conf
-            echo "        location /actuator/health {" >> nginx/nginx.conf
+            echo "        location /api/actuator/health {" >> nginx/nginx.conf
             echo "            proxy_pass http://backend_prod;" >> nginx/nginx.conf
             echo "            proxy_http_version 1.1;" >> nginx/nginx.conf
             echo "            proxy_set_header Host \$host;" >> nginx/nginx.conf
@@ -463,7 +463,7 @@ jobs:
               --memory-swap=450m \
               --cpus="0.5" \
               --restart unless-stopped \
-              --health-cmd="curl -f http://localhost:8080/actuator/health || exit 1" \
+              --health-cmd="curl -f http://localhost:8080/api/actuator/health || exit 1" \
               --health-interval=60s \
               --health-timeout=30s \
               --health-retries=5 \
@@ -551,7 +551,7 @@ jobs:
             RETRY_COUNT=0
             
             while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              if sudo docker exec ${{ env.CONTAINER_NAME }} curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              if sudo docker exec ${{ env.CONTAINER_NAME }} curl -f http://localhost:8080/api/actuator/health >/dev/null 2>&1; then
                 echo "✅ Application is healthy"
                 break
               else
@@ -627,6 +627,6 @@ jobs:
             echo ""
             echo "🎉 Deployment completed successfully!"
             echo "🌐 Access URLs:"
-            echo "   - HTTP:  http://${{ env.VM_HOST }}/actuator/health"
-            echo "   - HTTPS: https://${{ env.VM_HOST }}/actuator/health"
+            echo "   - HTTP:  http://${{ env.VM_HOST }}/api/actuator/health"
+            echo "   - HTTPS: https://${{ env.VM_HOST }}/api/actuator/health"
             echo "   - API:   https://${{ env.VM_HOST }}/api/"
