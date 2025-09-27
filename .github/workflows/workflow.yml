@@ -270,7 +270,7 @@ jobs:
             echo "🔐 Setting up Cloudflare Tunnel configuration..."
             
             # Create cloudflared directory
-            mkdir -p /etc/cloudflared
+            sudo mkdir -p /etc/cloudflared
             
             # Update config.yml with environment variables
             sed -i "s/\$TUNNEL_ID/${{ secrets.CLOUDFLARE_TUNNEL_ID }}/g" cloudflare/config.yml
@@ -278,16 +278,16 @@ jobs:
             
             # Copy credentials file if provided
             if [ -n "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" ]; then
-              echo "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" > /etc/cloudflared/credentials.json
-              chmod 600 /etc/cloudflared/credentials.json
+              echo "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" | sudo tee /etc/cloudflared/credentials.json > /dev/null
+              sudo chmod 600 /etc/cloudflared/credentials.json
               echo "✅ Cloudflare credentials configured"
             else
               echo "⚠️ Cloudflare credentials not provided - tunnel will need manual authentication"
             fi
             
             # Copy config to cloudflared directory
-            cp cloudflare/config.yml /etc/cloudflared/config.yml
-            chmod 644 /etc/cloudflared/config.yml
+            sudo cp cloudflare/config.yml /etc/cloudflared/config.yml
+            sudo chmod 644 /etc/cloudflared/config.yml
             
             echo "✅ Cloudflare Tunnel configuration ready"
 
