@@ -286,8 +286,10 @@ jobs:
             echo "🌐 Setting up Nginx configuration..."
             
             # Create nginx directory if not exists
-              mkdir -p nginx
-              
+            mkdir -p nginx
+            
+            echo "✅ Nginx configuration ready"
+            
             echo "✅ Nginx configuration files ready (using static files)"
 
       - name: 🏗️ Build and Deploy Application
@@ -360,7 +362,6 @@ jobs:
               -p 80:80 \
               -p 443:443 \
               -v $(pwd)/ssl:/etc/nginx/ssl:ro \
-              -v $(pwd)/nginx/nginx-http.conf:/etc/nginx/nginx.conf \
               --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || curl -f http://localhost/nginx_status || exit 1" \
               --health-interval=30s \
               --health-timeout=5s \
