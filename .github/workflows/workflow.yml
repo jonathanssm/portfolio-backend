@@ -300,15 +300,139 @@ jobs:
             # Simplify nginx.conf for single production environment
             echo "🔧 Simplifying nginx configuration for production..."
             
-            # Remove staging configurations and ensure production-only setup
-            sed -i '/# Upstream backend - Staging/,/}/d' nginx/nginx.conf 2>/dev/null || true
-            sed -i '/server_name.*staging/d' nginx/nginx.conf 2>/dev/null || true
-            sed -i 's/backend_staging/backend_prod/g' nginx/nginx.conf 2>/dev/null || true
-            sed -i 's/portfolio-backend-staging:8081/portfolio-backend-prod:8080/g' nginx/nginx.conf 2>/dev/null || true
-            
-            # Fix any generic upstream references
-            sed -i 's/upstream backend {/upstream backend_prod {/g' nginx/nginx.conf 2>/dev/null || true
-            sed -i 's/portfolio-backend:8080/portfolio-backend-prod:8080/g' nginx/nginx.conf 2>/dev/null || true
+            # Create a clean production-only nginx.conf using echo
+            echo "user nginx;" > nginx/nginx.conf
+            echo "worker_processes auto;" >> nginx/nginx.conf
+            echo "error_log /var/log/nginx/error.log notice;" >> nginx/nginx.conf
+            echo "pid /var/run/nginx.pid;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "events {" >> nginx/nginx.conf
+            echo "    worker_connections 1024;" >> nginx/nginx.conf
+            echo "    use epoll;" >> nginx/nginx.conf
+            echo "    multi_accept on;" >> nginx/nginx.conf
+            echo "}" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "http {" >> nginx/nginx.conf
+            echo "    include /etc/nginx/mime.types;" >> nginx/nginx.conf
+            echo "    default_type application/octet-stream;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "    # Logging" >> nginx/nginx.conf
+            echo "    log_format main '\$remote_addr - \$remote_user [\$time_local] \"\$request\" '" >> nginx/nginx.conf
+            echo "                    '\$status \$body_bytes_sent \"\$http_referer\" '" >> nginx/nginx.conf
+            echo "                    '\"\$http_user_agent\" \"\$http_x_forwarded_for\"';" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "    access_log /var/log/nginx/access.log main;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "    # Performance" >> nginx/nginx.conf
+            echo "    sendfile on;" >> nginx/nginx.conf
+            echo "    tcp_nopush on;" >> nginx/nginx.conf
+            echo "    tcp_nodelay on;" >> nginx/nginx.conf
+            echo "    keepalive_timeout 65;" >> nginx/nginx.conf
+            echo "    types_hash_max_size 2048;" >> nginx/nginx.conf
+            echo "    client_max_body_size 10M;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "    # Gzip compression" >> nginx/nginx.conf
+            echo "    gzip on;" >> nginx/nginx.conf
+            echo "    gzip_vary on;" >> nginx/nginx.conf
+            echo "    gzip_min_length 1024;" >> nginx/nginx.conf
+            echo "    gzip_proxied any;" >> nginx/nginx.conf
+            echo "    gzip_comp_level 6;" >> nginx/nginx.conf
+            echo "    gzip_types" >> nginx/nginx.conf
+            echo "        text/plain" >> nginx/nginx.conf
+            echo "        text/css" >> nginx/nginx.conf
+            echo "        text/xml" >> nginx/nginx.conf
+            echo "        text/javascript" >> nginx/nginx.conf
+            echo "        application/json" >> nginx/nginx.conf
+            echo "        application/javascript" >> nginx/nginx.conf
+            echo "        application/xml+rss" >> nginx/nginx.conf
+            echo "        application/atom+xml" >> nginx/nginx.conf
+            echo "        image/svg+xml;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "    # Rate limiting" >> nginx/nginx.conf
+            echo "    limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;" >> nginx/nginx.conf
+            echo "    limit_req_zone \$binary_remote_addr zone=login:10m rate=1r/s;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "    # Upstream backend - Production only" >> nginx/nginx.conf
+            echo "    upstream backend_prod {" >> nginx/nginx.conf
+            echo "        server portfolio-backend-prod:8080;" >> nginx/nginx.conf
+            echo "        keepalive 32;" >> nginx/nginx.conf
+            echo "    }" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "    # HTTP to HTTPS redirect" >> nginx/nginx.conf
+            echo "    server {" >> nginx/nginx.conf
+            echo "        listen 80;" >> nginx/nginx.conf
+            echo "        server_name _;" >> nginx/nginx.conf
+            echo "        return 301 https://\$host\$request_uri;" >> nginx/nginx.conf
+            echo "    }" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "    # HTTPS Production Server" >> nginx/nginx.conf
+            echo "    server {" >> nginx/nginx.conf
+            echo "        listen 443 ssl http2;" >> nginx/nginx.conf
+            echo "        server_name _;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "        # SSL configuration" >> nginx/nginx.conf
+            echo "        ssl_certificate /etc/nginx/ssl/cert.pem;" >> nginx/nginx.conf
+            echo "        ssl_certificate_key /etc/nginx/ssl/key.pem;" >> nginx/nginx.conf
+            echo "        ssl_protocols TLSv1.2 TLSv1.3;" >> nginx/nginx.conf
+            echo "        ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;" >> nginx/nginx.conf
+            echo "        ssl_prefer_server_ciphers off;" >> nginx/nginx.conf
+            echo "        ssl_session_cache shared:SSL:10m;" >> nginx/nginx.conf
+            echo "        ssl_session_timeout 10m;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "        # Security headers" >> nginx/nginx.conf
+            echo "        add_header X-Frame-Options DENY;" >> nginx/nginx.conf
+            echo "        add_header X-Content-Type-Options nosniff;" >> nginx/nginx.conf
+            echo "        add_header X-XSS-Protection \"1; mode=block\";" >> nginx/nginx.conf
+            echo "        add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains\" always;" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "        # API routes" >> nginx/nginx.conf
+            echo "        location /api/ {" >> nginx/nginx.conf
+            echo "            limit_req zone=api burst=20 nodelay;" >> nginx/nginx.conf
+            echo "            proxy_pass http://backend_prod;" >> nginx/nginx.conf
+            echo "            proxy_http_version 1.1;" >> nginx/nginx.conf
+            echo "            proxy_set_header Upgrade \$http_upgrade;" >> nginx/nginx.conf
+            echo "            proxy_set_header Connection 'upgrade';" >> nginx/nginx.conf
+            echo "            proxy_set_header Host \$host;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Real-IP \$remote_addr;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Forwarded-Proto \$scheme;" >> nginx/nginx.conf
+            echo "            proxy_cache_bypass \$http_upgrade;" >> nginx/nginx.conf
+            echo "            proxy_read_timeout 300s;" >> nginx/nginx.conf
+            echo "            proxy_connect_timeout 75s;" >> nginx/nginx.conf
+            echo "        }" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "        # Health check" >> nginx/nginx.conf
+            echo "        location /actuator/health {" >> nginx/nginx.conf
+            echo "            proxy_pass http://backend_prod;" >> nginx/nginx.conf
+            echo "            proxy_http_version 1.1;" >> nginx/nginx.conf
+            echo "            proxy_set_header Host \$host;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Real-IP \$remote_addr;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Forwarded-Proto \$scheme;" >> nginx/nginx.conf
+            echo "            access_log off;" >> nginx/nginx.conf
+            echo "        }" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "        # Root and other routes" >> nginx/nginx.conf
+            echo "        location / {" >> nginx/nginx.conf
+            echo "            proxy_pass http://backend_prod;" >> nginx/nginx.conf
+            echo "            proxy_http_version 1.1;" >> nginx/nginx.conf
+            echo "            proxy_set_header Host \$host;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Real-IP \$remote_addr;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> nginx/nginx.conf
+            echo "            proxy_set_header X-Forwarded-Proto \$scheme;" >> nginx/nginx.conf
+            echo "            proxy_read_timeout 300s;" >> nginx/nginx.conf
+            echo "            proxy_connect_timeout 75s;" >> nginx/nginx.conf
+            echo "        }" >> nginx/nginx.conf
+            echo "" >> nginx/nginx.conf
+            echo "        # Nginx status for monitoring" >> nginx/nginx.conf
+            echo "        location /nginx_status {" >> nginx/nginx.conf
+            echo "            stub_status on;" >> nginx/nginx.conf
+            echo "            access_log off;" >> nginx/nginx.conf
+            echo "            allow 127.0.0.1;" >> nginx/nginx.conf
+            echo "            deny all;" >> nginx/nginx.conf
+            echo "        }" >> nginx/nginx.conf
+            echo "    }" >> nginx/nginx.conf
+            echo "}" >> nginx/nginx.conf
             
             echo "✅ Nginx configuration ready"
 
@@ -387,29 +511,63 @@ jobs:
             
             echo "✅ Verifying deployment..."
             
-            # Wait for containers to start
-            sleep 30
+            # Wait for containers to start (Spring Boot needs more time)
+            echo "⏳ Waiting for application to fully start..."
+            sleep 60
             
             # Check container status
             echo "📋 Container status:"
             sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             
-            # Check application health
+            # Check application health with retry logic
             echo "🔍 Checking application health..."
-            if sudo docker exec ${{ env.CONTAINER_NAME }} curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
-              echo "✅ Application is healthy"
-            else
-              echo "❌ Application health check failed"
-              sudo docker logs --tail 20 ${{ env.CONTAINER_NAME }}
+            MAX_RETRIES=10
+            RETRY_COUNT=0
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              if sudo docker exec ${{ env.CONTAINER_NAME }} curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
+                echo "✅ Application is healthy"
+                break
+              else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                echo "⏳ Application not ready yet (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  sleep 15
+                fi
+              fi
+            done
+            
+            if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+              echo "❌ Application health check failed after $MAX_RETRIES attempts"
+              echo "📋 Container status:"
+              sudo docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+              echo "📋 Application logs:"
+              sudo docker logs --tail 30 ${{ env.CONTAINER_NAME }}
               exit 1
             fi
             
-            # Check nginx status
-            if sudo docker exec ${{ env.NGINX_CONTAINER }} wget --no-verbose --tries=1 --spider http://localhost/nginx_status >/dev/null 2>&1; then
-              echo "✅ Nginx is healthy"
-            else
-              echo "❌ Nginx health check failed"
-              sudo docker logs --tail 10 ${{ env.NGINX_CONTAINER }}
+            # Check nginx status with retry logic
+            echo "🌐 Checking nginx health..."
+            NGINX_RETRY_COUNT=0
+            NGINX_MAX_RETRIES=5
+            
+            while [ $NGINX_RETRY_COUNT -lt $NGINX_MAX_RETRIES ]; do
+              if sudo docker exec ${{ env.NGINX_CONTAINER }} wget --no-verbose --tries=1 --spider http://localhost/nginx_status >/dev/null 2>&1; then
+                echo "✅ Nginx is healthy"
+                break
+              else
+                NGINX_RETRY_COUNT=$((NGINX_RETRY_COUNT + 1))
+                echo "⏳ Nginx not ready yet (attempt $NGINX_RETRY_COUNT/$NGINX_MAX_RETRIES)..."
+                if [ $NGINX_RETRY_COUNT -lt $NGINX_MAX_RETRIES ]; then
+                  sleep 10
+                fi
+              fi
+            done
+            
+            if [ $NGINX_RETRY_COUNT -eq $NGINX_MAX_RETRIES ]; then
+              echo "❌ Nginx health check failed after $NGINX_MAX_RETRIES attempts"
+              echo "📋 Nginx logs:"
+              sudo docker logs --tail 20 ${{ env.NGINX_CONTAINER }}
               exit 1
             fi
             
