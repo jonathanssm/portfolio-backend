@@ -272,17 +272,8 @@ jobs:
             # Create cloudflared directory
             sudo mkdir -p /etc/cloudflared
             
-            # Update config.yml with environment variables
-            sed -i "s/\$TUNNEL_ID/${{ secrets.CLOUDFLARE_TUNNEL_ID }}/g" cloudflare/config.yml
-            sed -i "s/\$DOMAIN/${{ secrets.CLOUDFLARE_DOMAIN }}/g" cloudflare/config.yml
-            
             # Cloudflare Tunnel will use token authentication
             echo "✅ Cloudflare Tunnel will use token authentication"
-            
-            # Copy config to cloudflared directory
-            sudo cp cloudflare/config.yml /etc/cloudflared/config.yml
-            sudo chmod 644 /etc/cloudflared/config.yml
-            sudo chown root:root /etc/cloudflared/config.yml
             
             echo "✅ Cloudflare Tunnel configuration ready"
 
@@ -374,7 +365,6 @@ jobs:
               --cpus="0.1" \
               --restart unless-stopped \
               --user root \
-              -v /etc/cloudflared:/etc/cloudflared:ro \
               -e TUNNEL_TOKEN="${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}" \
               cloudflare-tunnel
             
