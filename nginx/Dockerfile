@@ -3,8 +3,8 @@ FROM nginx:1.25-alpine
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy custom nginx configuration (will be overridden by volume mount)
+COPY nginx-http.conf /etc/nginx/nginx.conf
 
 # Create directories and set permissions
 RUN mkdir -p /etc/nginx/ssl /var/log/nginx && \
