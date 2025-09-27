@@ -279,7 +279,8 @@ jobs:
             # Copy credentials file if provided
             if [ -n "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" ]; then
               echo "${{ secrets.CLOUDFLARE_CREDENTIALS_JSON }}" | sudo tee /etc/cloudflared/credentials.json > /dev/null
-              sudo chmod 600 /etc/cloudflared/credentials.json
+              sudo chmod 644 /etc/cloudflared/credentials.json
+              sudo chown root:root /etc/cloudflared/credentials.json
               echo "✅ Cloudflare credentials configured"
             else
               echo "⚠️ Cloudflare credentials not provided - tunnel will need manual authentication"
@@ -288,6 +289,7 @@ jobs:
             # Copy config to cloudflared directory
             sudo cp cloudflare/config.yml /etc/cloudflared/config.yml
             sudo chmod 644 /etc/cloudflared/config.yml
+            sudo chown root:root /etc/cloudflared/config.yml
             
             echo "✅ Cloudflare Tunnel configuration ready"
 
@@ -378,6 +380,7 @@ jobs:
               --memory-swap=64m \
               --cpus="0.1" \
               --restart unless-stopped \
+              --user root \
               -v /etc/cloudflared:/etc/cloudflared:ro \
               cloudflare-tunnel
             
