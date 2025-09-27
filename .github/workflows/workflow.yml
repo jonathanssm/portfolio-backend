@@ -157,7 +157,6 @@ jobs:
         run: |
           cp target/$JAR_NAME .
           ls -la $JAR_NAME Dockerfile
-          ls -la cloudflare/
 
       - name: Setup VM directory
         uses: appleboy/ssh-action@v1.0.0
@@ -184,7 +183,7 @@ jobs:
           host: ${{ env.VM_HOST }}
           username: ${{ env.VM_USER }}
           key: ${{ env.VM_SSH_KEY }}
-          source: "${{ env.JAR_NAME }},Dockerfile,cloudflare/"
+          source: "${{ env.JAR_NAME }},Dockerfile"
           target: ${{ env.VM_PATH }}
           overwrite: true
 
@@ -200,7 +199,6 @@ jobs:
             
             echo "📦 Verifying artifacts on VM..."
             ls -la
-            ls -la cloudflare/
             
             if [ ! -f "${{ env.JAR_NAME }}" ]; then
               echo "❌ JAR not found on VM"
@@ -209,16 +207,6 @@ jobs:
             
             if [ ! -s "${{ env.JAR_NAME }}" ]; then
               echo "❌ JAR is empty on VM"
-              exit 1
-            fi
-            
-            if [ ! -f "cloudflare/config.yml" ]; then
-              echo "❌ cloudflare/config.yml not found on VM"
-              exit 1
-            fi
-            
-            if [ ! -f "cloudflare/Dockerfile" ]; then
-              echo "❌ cloudflare/Dockerfile not found on VM"
               exit 1
             fi
             
@@ -241,7 +229,7 @@ jobs:
             sudo docker rm ${{ env.CONTAINER_NAME }} ${{ env.CLOUDFLARE_CONTAINER }} 2>/dev/null || true
             
             # Remove old images to free space
-            sudo docker rmi portfolio-backend-prod cloudflare-tunnel 2>/dev/null || true
+            sudo docker rmi portfolio-backend-prod 2>/dev/null || true
             
             # Clean up Docker network
             sudo docker network rm portfolio-network 2>/dev/null || true
@@ -309,12 +297,9 @@ jobs:
             
             echo "🏗️ Building and deploying application..."
             
-            # Build Docker images
+            # Build Docker image
             echo "🔨 Building application image..."
             sudo docker build -t portfolio-backend-prod .
-            
-            echo "🔨 Building Cloudflare Tunnel image..."
-            sudo docker build -t cloudflare-tunnel ./cloudflare
             
             # Create Docker network for communication
             echo "🌐 Creating Docker network..."
