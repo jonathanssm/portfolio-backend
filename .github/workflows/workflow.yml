@@ -457,7 +457,7 @@ jobs:
             echo "   - Health Check: https://${{ secrets.CLOUDFLARE_DOMAIN }}/api/actuator/health"
             
             # Set success flag for rollback mechanism
-            echo "DEPLOYMENT_SUCCESS=true" >> $GITHUB_ENV
+            echo "DEPLOYMENT_SUCCESS=true" >> "$GITHUB_ENV"
 
       - name: 🚨 Rollback on Failure
         if: failure() && steps.deploy.outcome == 'failure'
