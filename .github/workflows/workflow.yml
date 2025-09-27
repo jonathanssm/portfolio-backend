@@ -370,7 +370,8 @@ jobs:
             echo "" >> nginx/nginx.conf
             echo "    # HTTPS Production Server" >> nginx/nginx.conf
             echo "    server {" >> nginx/nginx.conf
-            echo "        listen 443 ssl http2;" >> nginx/nginx.conf
+            echo "        listen 443 ssl;" >> nginx/nginx.conf
+            echo "        http2 on;" >> nginx/nginx.conf
             echo "        server_name _;" >> nginx/nginx.conf
             echo "" >> nginx/nginx.conf
             echo "        # SSL configuration" >> nginx/nginx.conf
@@ -432,6 +433,9 @@ jobs:
             echo "            stub_status on;" >> nginx/nginx.conf
             echo "            access_log off;" >> nginx/nginx.conf
             echo "            allow 127.0.0.1;" >> nginx/nginx.conf
+            echo "            allow 172.16.0.0/12;" >> nginx/nginx.conf
+            echo "            allow 192.168.0.0/16;" >> nginx/nginx.conf
+            echo "            allow 10.0.0.0/8;" >> nginx/nginx.conf
             echo "            deny all;" >> nginx/nginx.conf
             echo "        }" >> nginx/nginx.conf
             echo "    }" >> nginx/nginx.conf
@@ -500,7 +504,7 @@ jobs:
                 -p 80:80 \
                 -p 443:443 \
                 -v $(pwd)/ssl:/etc/nginx/ssl:ro \
-                --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || exit 1" \
+                --health-cmd="wget --no-verbose --tries=1 --spider http://localhost/nginx_status || curl -f http://localhost/nginx_status || exit 1" \
                 --health-interval=30s \
                 --health-timeout=5s \
                 --health-retries=3 \
@@ -508,30 +512,43 @@ jobs:
             
             echo "✅ Application deployed successfully"
             
-            # Try Let's Encrypt again now that nginx is running
-            echo "🔄 Attempting Let's Encrypt with nginx running..."
+            # Try Let's Encrypt with proper port management
+            echo "🔄 Attempting Let's Encrypt certificate..."
             if [[ ! "${{ env.VM_HOST }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && [ "${{ env.VM_HOST }}" != "localhost" ] && [ "${{ env.VM_HOST }}" != "127.0.0.1" ]; then
-              # Stop nginx temporarily for Let's Encrypt
-              sudo docker stop ${{ env.NGINX_CONTAINER }} 2>/dev/null || true
-              
-              # Try Let's Encrypt
-              if sudo certbot certonly --standalone --non-interactive --agree-tos \
-                --email "admin@${{ env.VM_HOST }}" \
-                --domains "${{ env.VM_HOST }}" \
-                --expand 2>/dev/null; then
+              # Check if port 80 is free
+              if ! sudo lsof -i :80 >/dev/null 2>&1; then
+                echo "✅ Port 80 is free, attempting Let's Encrypt..."
                 
-                if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
-                  sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
-                  sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
-                  echo "✅ Let's Encrypt certificate configured successfully!"
+                # Try Let's Encrypt
+                if sudo certbot certonly --standalone --non-interactive --agree-tos \
+                  --email "admin@${{ env.VM_HOST }}" \
+                  --domains "${{ env.VM_HOST }}" \
+                  --expand 2>/dev/null; then
                   
-                  # Setup auto-renewal
-                  (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet") | crontab - 2>/dev/null || true
+                  if [ -f "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ]; then
+                    sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/fullchain.pem" ssl/cert.pem
+                    sudo cp "/etc/letsencrypt/live/${{ env.VM_HOST }}/privkey.pem" ssl/key.pem
+                    echo "✅ Let's Encrypt certificate configured successfully!"
+                    
+                    # Setup auto-renewal
+                    (crontab -l 2>/dev/null; echo "0 2 * * * certbot renew --quiet") | crontab - 2>/dev/null || true
+                    
+                    # Restart nginx to use new certificate
+                    echo "🔄 Restarting nginx with Let's Encrypt certificate..."
+                    sudo docker restart nginx-proxy
+                  fi
+                else
+                  echo "⚠️ Let's Encrypt failed - check DNS propagation and firewall"
                 fi
+              else
+                echo "⚠️ Port 80 is occupied - Let's Encrypt skipped"
+                echo "🔧 To get valid certificate:"
+                echo "   1. Stop nginx: sudo docker stop nginx-proxy"
+                echo "   2. Run: sudo certbot certonly --standalone -d ${{ env.VM_HOST }}"
+                echo "   3. Start nginx: sudo docker start nginx-proxy"
               fi
-              
-              # Restart nginx with new certificate
-              sudo docker start ${{ env.NGINX_CONTAINER }}
+            else
+              echo "🏠 Using self-signed certificate for IP/localhost"
             fi
 
       - name: ✅ Verify Deployment
