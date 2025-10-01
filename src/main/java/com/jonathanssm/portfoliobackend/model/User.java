@@ -143,21 +143,4 @@ public class User implements UserDetails {
                 .collect(Collectors.toSet());
     }
 
-    // Métodos para adicionar/remover roles diretamente (não recomendado, mas necessário para compatibilidade)
-    public void addRole(Role role) {
-        // Encontra um perfil que contenha esta role ou cria um novo perfil
-        Profile profileWithRole = profiles.stream()
-                .filter(profile -> profile.getRoles().contains(role))
-                .findFirst()
-                .orElse(null);
-
-        if (profileWithRole == null && !profiles.isEmpty()) {
-            // Se não existe perfil com esta role, adiciona ao primeiro perfil disponível
-            profiles.iterator().next().addRole(role);
-        }
-    }
-
-    public void removeRole(Role role) {
-        profiles.forEach(profile -> profile.removeRole(role));
-    }
 }

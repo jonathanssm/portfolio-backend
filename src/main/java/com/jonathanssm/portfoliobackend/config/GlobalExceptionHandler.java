@@ -1,6 +1,7 @@
 package com.jonathanssm.portfoliobackend.config;
 
-import com.jonathanssm.portfoliobackend.constants.ApplicationConstants;
+import com.jonathanssm.portfoliobackend.constants.ErrorConstants;
+import com.jonathanssm.portfoliobackend.constants.ValidationConstants;
 import com.jonathanssm.portfoliobackend.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -61,7 +62,7 @@ public class GlobalExceptionHandler {
         log.warn("Argumento inválido: {}", ex.getMessage());
 
         // Se a mensagem contém "already exists", retorna 409 CONFLICT
-        if (ex.getMessage().contains(ApplicationConstants.Validation.ALREADY_EXISTS_KEYWORD)) {
+        if (ex.getMessage().contains(ValidationConstants.ALREADY_EXISTS_KEYWORD)) {
             ApiResponse response = ApiResponse.builder()
                     .timestamp(LocalDateTime.now())
                     .status(HttpStatus.CONFLICT.value())
@@ -92,13 +93,35 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.UNAUTHORIZED.value())
                 .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
-                .message(ApplicationConstants.ErrorMessages.System.INVALID_CREDENTIALS)
+                .message(ErrorConstants.System.INVALID_CREDENTIALS)
                 .path(request.getRequestURI())
                 .build();
 
         return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
     }
 
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ResponseEntity<ApiResponse> handleAuthenticationException(org.springframework.security.core.AuthenticationException ex, HttpServletRequest request) {
+        String message = switch (ex.getClass().getSimpleName()) {
+            case "BadCredentialsException" -> "Invalid username or password";
+            case "AccountExpiredException" -> "Account has expired";
+            case "LockedException" -> "Account is locked";
+            case "DisabledException" -> "Account is disabled";
+            default -> "Authentication failed";
+        };
+
+        log.warn("Authentication failed: {} - {}", ex.getClass().getSimpleName(), ex.getMessage());
+
+        ApiResponse response = ApiResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.UNAUTHORIZED.value())
+                .error("Authentication Error")
+                .message(message)
+                .path(request.getRequestURI())
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse> handleValidationExceptions(MethodArgumentNotValidException ex, HttpServletRequest request) {
@@ -115,7 +138,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(ApplicationConstants.ErrorMessages.System.VALIDATION_ERROR)
+                .message(ErrorConstants.System.VALIDATION_ERROR)
                 .details(errors)
                 .path(request.getRequestURI())
                 .build();
@@ -138,7 +161,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(ApplicationConstants.ErrorMessages.System.CONSTRAINT_VIOLATION)
+                .message(ErrorConstants.System.CONSTRAINT_VIOLATION)
                 .details(errors)
                 .path(request.getRequestURI())
                 .build();
@@ -154,7 +177,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(HttpStatus.NOT_FOUND.getReasonPhrase())
-                .message(ApplicationConstants.ErrorMessages.System.ELEMENT_NOT_FOUND)
+                .message(ErrorConstants.System.ELEMENT_NOT_FOUND)
                 .path(request.getRequestURI())
                 .build();
 
@@ -169,7 +192,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(ApplicationConstants.ErrorMessages.System.INVALID_JSON)
+                .message(ErrorConstants.System.INVALID_JSON)
                 .path(request.getRequestURI())
                 .data(Collections.emptyMap())
                 .details(Collections.singletonMap("exception", ex.getClass().getSimpleName()))
@@ -186,7 +209,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
-                .message(ApplicationConstants.ErrorMessages.System.INTERNAL_SERVER_ERROR)
+                .message(ErrorConstants.System.INTERNAL_SERVER_ERROR)
                 .path(request.getRequestURI())
                 .build();
 
@@ -201,7 +224,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error(HttpStatus.NOT_FOUND.getReasonPhrase())
-                .message(ApplicationConstants.ErrorMessages.System.ENDPOINT_NOT_FOUND)
+                .message(ErrorConstants.System.ENDPOINT_NOT_FOUND)
                 .path(request.getRequestURI())
                 .build();
 
@@ -216,7 +239,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.SERVICE_UNAVAILABLE.value())
                 .error("Kafka Error")
-                .message(ApplicationConstants.ErrorMessages.System.KAFKA_ERROR)
+                .message(ErrorConstants.System.KAFKA_ERROR)
                 .path(request.getRequestURI())
                 .build();
 
@@ -231,7 +254,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error("Kafka Listener Error")
-                .message(ApplicationConstants.ErrorMessages.System.KAFKA_LISTENER_ERROR)
+                .message(ErrorConstants.System.KAFKA_LISTENER_ERROR)
                 .path(request.getRequestURI())
                 .build();
 

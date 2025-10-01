@@ -1,5 +1,6 @@
 package com.jonathanssm.portfoliobackend.controller;
 
+import com.jonathanssm.portfoliobackend.constants.HttpConstants;
 import com.jonathanssm.portfoliobackend.dto.ExperienceRequest;
 import com.jonathanssm.portfoliobackend.dto.ExperienceResponse;
 import com.jonathanssm.portfoliobackend.service.ExperienceService;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -38,7 +40,7 @@ public class ExperienceController {
                     responseCode = "201",
                     description = "Experiência criada com sucesso",
                     content = @Content(
-                            mediaType = "application/json",
+                            mediaType = HttpConstants.Headers.CONTENT_TYPE_JSON,
                             schema = @Schema(implementation = ExperienceResponse.class)
                     )
             ),
@@ -65,7 +67,7 @@ public class ExperienceController {
                     responseCode = "200",
                     description = "Lista de experiências retornada com sucesso",
                     content = @Content(
-                            mediaType = "application/json",
+                            mediaType = HttpConstants.Headers.CONTENT_TYPE_JSON,
                             schema = @Schema(implementation = ExperienceResponse.class)
                     )
             )
@@ -73,6 +75,27 @@ public class ExperienceController {
     @GetMapping
     public ResponseEntity<List<ExperienceResponse>> getAllExperiences() {
         return ResponseEntity.ok(experienceService.getAllExperiences());
+    }
+
+    @Operation(
+            summary = "Listar experiências com paginação",
+            description = "Retorna experiências paginadas para melhor performance"
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Página de experiências retornada com sucesso",
+                    content = @Content(
+                            mediaType = HttpConstants.Headers.CONTENT_TYPE_JSON,
+                            schema = @Schema(implementation = Page.class)
+                    )
+            )
+    })
+    @GetMapping("/paginated")
+    public ResponseEntity<Page<ExperienceResponse>> getAllExperiencesPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(experienceService.getAllExperiences(page, size));
     }
 
     @Operation(
@@ -84,7 +107,7 @@ public class ExperienceController {
                     responseCode = "200",
                     description = "Experiência encontrada com sucesso",
                     content = @Content(
-                            mediaType = "application/json",
+                            mediaType = HttpConstants.Headers.CONTENT_TYPE_JSON,
                             schema = @Schema(implementation = ExperienceResponse.class)
                     )
             ),
@@ -110,7 +133,7 @@ public class ExperienceController {
                     responseCode = "200",
                     description = "Experiência atualizada com sucesso",
                     content = @Content(
-                            mediaType = "application/json",
+                            mediaType = HttpConstants.Headers.CONTENT_TYPE_JSON,
                             schema = @Schema(implementation = ExperienceResponse.class)
                     )
             ),

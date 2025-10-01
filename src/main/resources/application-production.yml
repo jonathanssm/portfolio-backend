@@ -1,0 +1,36 @@
+spring:
+  config:
+    activate:
+      on-profile: production
+
+# Configurações específicas para produção
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    tryItOutEnabled: true
+
+# Configurações de segurança mais permissivas para Swagger em produção
+# (Se necessário, pode ser restrito posteriormente)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,swagger-ui
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# Logging reduzido para produção
+logging:
+  level:
+    com.jonathanssm.portfoliobackend: INFO
+    org.springframework.security: WARN
+    org.springframework.web: WARN
+    org.hibernate: ERROR
+    org.apache.kafka: WARN
