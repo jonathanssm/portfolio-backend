@@ -1,7 +1,8 @@
 package com.jonathanssm.portfoliobackend.config;
 
-import com.jonathanssm.portfoliobackend.constants.ApplicationConstants;
+import com.jonathanssm.portfoliobackend.constants.SecurityConstants;
 import com.jonathanssm.portfoliobackend.util.JwtUtil;
+import com.jonathanssm.portfoliobackend.util.RequestHelper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,16 +32,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(@NonNull HttpServletRequest request, @NonNull HttpServletResponse response, @NonNull FilterChain filterChain)
             throws ServletException, IOException {
 
-        final String authHeader = request.getHeader(ApplicationConstants.Authentication.AUTHORIZATION_HEADER);
+        final String authHeader = request.getHeader(SecurityConstants.Authentication.AUTHORIZATION_HEADER);
         final String jwt;
         final String username;
 
-        if (authHeader == null || !authHeader.startsWith(ApplicationConstants.Authentication.BEARER_PREFIX)) {
+        if (authHeader == null || !authHeader.startsWith(SecurityConstants.Authentication.BEARER_PREFIX)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
+        jwt = RequestHelper.extractBearerToken(authHeader);
         try {
             username = jwtUtil.extractUsername(jwt);
         } catch (Exception e) {
@@ -52,7 +53,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
-            if (Boolean.TRUE.equals(jwtUtil.validateToken(jwt, userDetails))) {
+            if (Boolean.TRUE.equals(jwtUtil.validateToken(jwt))) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,

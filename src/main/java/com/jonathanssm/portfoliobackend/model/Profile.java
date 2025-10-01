@@ -55,26 +55,9 @@ public class Profile {
     private LocalDateTime updatedAt;
 
     // Métodos de conveniência
-    public void addRole(Role role) {
-        this.roles.add(role);
-    }
-
-    public void removeRole(Role role) {
-        this.roles.remove(role);
-    }
-
     public boolean hasRole(Role.RoleName roleName) {
         return roles.stream()
                 .anyMatch(role -> role.getName() == roleName);
     }
 
-    public void addUser(User user) {
-        this.users.add(user);
-        user.getProfiles().add(this);
-    }
-
-    public void removeUser(User user) {
-        this.users.remove(user);
-        user.getProfiles().remove(this);
-    }
 }
