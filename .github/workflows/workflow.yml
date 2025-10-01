@@ -314,7 +314,7 @@ jobs:
               --memory-swap=450m \
               --cpus="0.5" \
               --restart unless-stopped \
-              --health-cmd="curl -f http://localhost:8080/api/actuator/health || exit 1" \
+              --health-cmd="curl -f http://localhost:8080/actuator/health || exit 1" \
               --health-interval=60s \
               --health-timeout=30s \
               --health-retries=5 \
@@ -401,7 +401,7 @@ jobs:
             RETRY_COUNT=0
             
             while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              if sudo docker exec ${{ env.CONTAINER_NAME }} curl -f http://localhost:8080/api/actuator/health >/dev/null 2>&1; then
+              if sudo docker exec ${{ env.CONTAINER_NAME }} curl -f http://localhost:8080/actuator/health >/dev/null 2>&1; then
                 echo "✅ Application is healthy"
                 break
               else
@@ -452,9 +452,9 @@ jobs:
             echo ""
             echo "🎉 Deployment completed successfully!"
             echo "🌐 Access URLs:"
-            echo "   - Cloudflare Domain: https://${{ secrets.CLOUDFLARE_DOMAIN }}/api/actuator/health"
-            echo "   - API: https://${{ secrets.CLOUDFLARE_DOMAIN }}/api/"
-            echo "   - Health Check: https://${{ secrets.CLOUDFLARE_DOMAIN }}/api/actuator/health"
+            echo "   - Cloudflare Domain: https://${{ secrets.CLOUDFLARE_DOMAIN }}/actuator/health"
+            echo "   - API: https://${{ secrets.CLOUDFLARE_DOMAIN }}/"
+            echo "   - Health Check: https://${{ secrets.CLOUDFLARE_DOMAIN }}/actuator/health"
             
             # Set success flag for rollback mechanism
             echo "✅ Deployment success flag set"
